@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Calendar, Banknote, TrendingDown, Clock, AlertCircle, CalendarDays, List } from "lucide-react"
+import { Plus, Calendar, Banknote, banknote-arrow-up, circle-dollar-sign, TrendingDown, Clock, AlertCircle, CalendarDays, List } from "lucide-react"
 import type { Installment } from "@/lib/types"
 import { InstallmentDialog } from "./installment-dialog"
 import { CalendarGrid } from "./calendar-grid"
@@ -237,7 +237,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
-            <TrendingDown className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
+            <circle-dollar-sign className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
             </div>
           </div>
         </Card>
@@ -251,7 +251,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-green-500/10 shrink-0">
-              <circle-dollar-sign className="h-4 w-4 md:h-5 md:w-5 text-green-500" />
+              <banknote-arrow-up className="h-4 w-4 md:h-5 md:w-5 text-green-500" />
             </div>
           </div>
         </Card>
