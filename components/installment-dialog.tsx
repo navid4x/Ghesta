@@ -11,7 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Installment, InstallmentPayment } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { Trash2 } from "lucide-react"
-import { gregorianToJalali, jalaliToGregorian } from "@/lib/persian-calendar"
+import {
+  gregorianToJalali,
+  jalaliToGregorian,
+  toPersianDigits,
+  formatCurrencyPersian,
+  parseCurrencyInput,
+} from "@/lib/persian-calendar"
 import { PersianDatePicker } from "@/components/persian-date-picker"
 import { saveInstallment, deleteInstallment } from "@/lib/data-sync"
 
@@ -36,7 +42,9 @@ export function InstallmentDialog({
   const [creditorName, setCreditorName] = useState("")
   const [itemDescription, setItemDescription] = useState("")
   const [totalAmount, setTotalAmount] = useState("")
+  const [totalAmountDisplay, setTotalAmountDisplay] = useState("")
   const [installmentAmount, setInstallmentAmount] = useState("")
+  const [installmentAmountDisplay, setInstallmentAmountDisplay] = useState("")
   const [startDatePersian, setStartDatePersian] = useState({ year: 1403, month: 1, day: 1 })
   const [installmentCount, setInstallmentCount] = useState("12")
   const [recurrence, setRecurrence] = useState<"daily" | "weekly" | "monthly" | "yearly">("monthly")
@@ -50,7 +58,9 @@ export function InstallmentDialog({
       setCreditorName(installment.creditor_name)
       setItemDescription(installment.item_description)
       setTotalAmount(installment.total_amount.toString())
+      setTotalAmountDisplay(formatCurrencyPersian(installment.total_amount))
       setInstallmentAmount(installment.installment_amount.toString())
+      setInstallmentAmountDisplay(formatCurrencyPersian(installment.installment_amount))
 
       // Convert Gregorian to Persian
       const [year, month, day] = installment.start_date.split("-").map(Number)
@@ -66,7 +76,9 @@ export function InstallmentDialog({
       setCreditorName("")
       setItemDescription("")
       setTotalAmount("")
+      setTotalAmountDisplay("")
       setInstallmentAmount("")
+      setInstallmentAmountDisplay("")
 
       if (initialDate) {
         const [year, month, day] = initialDate.split("-").map(Number)
@@ -213,6 +225,18 @@ export function InstallmentDialog({
     }
   }
 
+  function handleTotalAmountChange(value: string) {
+    const numeric = parseCurrencyInput(value)
+    setTotalAmount(numeric.toString())
+    setTotalAmountDisplay(numeric > 0 ? formatCurrencyPersian(numeric) : "")
+  }
+
+  function handleInstallmentAmountChange(value: string) {
+    const numeric = parseCurrencyInput(value)
+    setInstallmentAmount(numeric.toString())
+    setInstallmentAmountDisplay(numeric > 0 ? formatCurrencyPersian(numeric) : "")
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
@@ -261,11 +285,12 @@ export function InstallmentDialog({
               </Label>
               <Input
                 id="total"
-                type="number"
-                value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
-                placeholder="50,000,000"
+                type="text"
+                value={totalAmountDisplay}
+                onChange={(e) => handleTotalAmountChange(e.target.value)}
+                placeholder="۵۰,۰۰۰,۰۰۰"
                 className="text-right mt-2"
+                dir="rtl"
               />
             </div>
 
@@ -275,12 +300,13 @@ export function InstallmentDialog({
               </Label>
               <Input
                 id="installment"
-                type="number"
-                value={installmentAmount}
-                onChange={(e) => setInstallmentAmount(e.target.value)}
-                placeholder="5,000,000"
+                type="text"
+                value={installmentAmountDisplay}
+                onChange={(e) => handleInstallmentAmountChange(e.target.value)}
+                placeholder="۵,۰۰۰,۰۰۰"
                 required
                 className="text-right mt-2"
+                dir="rtl"
               />
             </div>
           </div>
@@ -304,13 +330,14 @@ export function InstallmentDialog({
                 </Label>
                 <Input
                   id="count"
-                  type="number"
+                  type="text"
                   min="1"
-                  value={installmentCount}
-                  onChange={(e) => setInstallmentCount(e.target.value)}
-                  placeholder="12"
+                  value={toPersianDigits(installmentCount)}
+                  onChange={(e) => setInstallmentCount(parseCurrencyInput(e.target.value).toString())}
+                  placeholder="۱۲"
                   required
                   className="text-right mt-2"
+                  dir="rtl"
                 />
               </div>
 

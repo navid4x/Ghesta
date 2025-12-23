@@ -18,7 +18,6 @@ export const persianWeekDays = ["شنبه", "یکشنبه", "دوشنبه", "س�
 
 export const persianWeekDaysShort = ["ش", "ی", "د", "س", "چ", "پ", "ج"]
 
-
 // Iranian national holidays (1403)
 export const iranianHolidays: Record<string, string> = {
   "1403-01-01": "نوروز",
@@ -55,7 +54,14 @@ export function gregorianToJalali(gy: number, gm: number, gd: number): [number, 
     gy -= 621
   }
   const gy2 = gm > 2 ? gy + 1 : gy
-  let days = 365 * gy + div(gy2 + 3, 4) - div(gy2 + 99, 100) + div(gy2 + 399, 400) - 80 + gd + [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334][gm - 1]
+  let days =
+    365 * gy +
+    div(gy2 + 3, 4) -
+    div(gy2 + 99, 100) +
+    div(gy2 + 399, 400) -
+    80 +
+    gd +
+    [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334][gm - 1]
 
   jy += 33 * div(days, 12053)
   days %= 12053
@@ -84,7 +90,8 @@ export function jalaliToGregorian(jy: number, jm: number, jd: number): [number, 
     gy = 621
     jy -= 0
   }
-  let days = 365 * jy + div(jy, 33) * 8 + div(mod(jy, 33) + 3, 4) + 78 + jd + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186)
+  let days =
+    365 * jy + div(jy, 33) * 8 + div(mod(jy, 33) + 3, 4) + 78 + jd + (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186)
 
   gy += 400 * div(days, 146097)
   days %= 146097
@@ -108,7 +115,7 @@ export function jalaliToGregorian(jy: number, jm: number, jd: number): [number, 
   }
 
   let gd = days + 1
-  const isLeap = (gy % 4 === 0 && gy % 100 !== 0) || (gy % 400 === 0)
+  const isLeap = (gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0
   const sal_a = [0, 31, leapFlag && isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
   let gm = 0
   for (gm = 0; gm < 13; gm++) {
@@ -155,4 +162,58 @@ export function formatPersianDate(year: number, month: number, day: number): str
 export function parsePersianDate(dateString: string): [number, number, number] {
   const parts = dateString.split("/")
   return [Number.parseInt(parts[0]), Number.parseInt(parts[1]), Number.parseInt(parts[2])]
+}
+
+export function getCurrentPersianMonthRemainingDays(): {
+  startDay: number
+  endDay: number
+  month: number
+  year: number
+} {
+  const today = getTodayPersian()
+  const [jy, jm, jd] = today
+  const monthDays = getPersianMonthDays(jy, jm)
+  return {
+    year: jy,
+    month: jm,
+    startDay: jd,
+    endDay: monthDays,
+  }
+}
+
+export function toPersianDigits(str: string | number): string {
+  if (str === null || str === undefined) return ""
+  const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"]
+  return String(str).replace(/\d/g, (digit) => persianDigits[Number.parseInt(digit)])
+}
+
+export function toEnglishDigits(str: string): string {
+  if (!str) return ""
+  const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"]
+  const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٣", "٨", "٩"]
+
+  return str
+    .split("")
+    .map((char) => {
+      const persianIndex = persianDigits.indexOf(char)
+      if (persianIndex !== -1) return persianIndex.toString()
+      const arabicIndex = arabicDigits.indexOf(char)
+      if (arabicIndex !== -1) return arabicIndex.toString()
+      return char
+    })
+    .join("")
+}
+
+export function formatCurrencyPersian(amount: number): string {
+  // Format with thousand separators
+  const formatted = new Intl.NumberFormat("en-US").format(amount)
+  // Convert to Persian digits
+  return toPersianDigits(formatted)
+}
+
+export function parseCurrencyInput(value: string): number {
+  // Remove all non-numeric characters except Persian/Arabic digits
+  const english = toEnglishDigits(value)
+  const cleaned = english.replace(/[^\d]/g, "")
+  return cleaned ? Number.parseInt(cleaned) : 0
 }
