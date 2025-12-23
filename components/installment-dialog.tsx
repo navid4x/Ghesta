@@ -304,11 +304,11 @@ export function InstallmentDialog({
     const numeric = parseCurrencyInput(value)
     setInstallmentAmount(numeric.toString())
     setInstallmentAmountDisplay(numeric > 0 ? formatCurrencyPersian(numeric) : "")
-  }
+  } 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
+    <Dialog open={open}  onOpenChange={onOpenChange}>
+      <DialogContent aria-describedby={undefined} className="max-w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl md:text-2xl text-right flex-1">

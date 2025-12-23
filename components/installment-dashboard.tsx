@@ -39,7 +39,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     setLoading(true)
     try {
       const data = await loadInstallments(userId)
-      console.log("📦 Loaded installments:", data)
       setInstallments(data)
     } catch (error) {
       console.error("[v0] Error loading installments:", error)
@@ -94,9 +93,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     todayGregorian.getDate()
   )
 
-  console.log("📅 امروز میلادی:", todayGregorian.toISOString().split('T')[0])
-  console.log("📅 امروز شمسی:", `${todayJalaliYear}/${todayJalaliMonth}/${todayJalaliDay}`)
-
   // ✅ محاسبه کل بدهی (از امروز به بعد)
   const totalDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) {
@@ -147,9 +143,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     
     return sum + unpaidAmount
   }, 0)
-
-  console.log("💰 کل بدهی محاسبه شده:", totalDebt)
-  console.log("💰 بدهی ماه جاری محاسبه شده:", currentMonthDebt)
 
   // ✅ اقساط سررسید این هفته
   const upcomingThisWeek = installments.flatMap((inst) => {
