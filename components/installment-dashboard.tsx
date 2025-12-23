@@ -237,7 +237,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
+            <TrendingDown className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
             </div>
           </div>
         </Card>
@@ -251,7 +251,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-green-500/10 shrink-0">
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-green-500" />
+              <Calendar className="h-4 w-4 md:h-5 md:w-5 text-green-500" />
             </div>
           </div>
         </Card>
@@ -266,7 +266,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               <p className="mt-1 text-lg md:text-xl font-bold">{toPersianDigits(upcomingThisWeek.length)}</p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-amber-500/10 shrink-0">
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-amber-500" />
+              <Calendar className="h-4 w-4 md:h-5 md:w-5 text-amber-500" />
             </div>
           </div>
         </Card>
@@ -281,7 +281,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               <p className="mt-1 text-lg md:text-xl font-bold">{toPersianDigits(overdueInstallments.length)}</p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-red-500/10 shrink-0">
-              <CalendarDays className="h-4 w-4 md:h-5 md:w-5 text-red-500" />
+              <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-red-500" />
             </div>
           </div>
         </Card>
