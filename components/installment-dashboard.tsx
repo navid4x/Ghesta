@@ -13,7 +13,6 @@ import { CalendarGrid } from "./calendar-grid"
 import {
   gregorianToJalali,
   persianMonths,
-  getCurrentPersianMonthRemainingDays,
   toPersianDigits,
   formatCurrencyPersian,
 } from "@/lib/persian-calendar"
@@ -40,6 +39,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     setLoading(true)
     try {
       const data = await loadInstallments(userId)
+      console.log("📦 Loaded installments:", data)
       setInstallments(data)
     } catch (error) {
       console.error("[v0] Error loading installments:", error)
@@ -84,71 +84,109 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
   }
 
-  const currentMonthRemaining = getCurrentPersianMonthRemainingDays()
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // 📅 تاریخ امروز (میلادی و شمسی)
+  const todayGregorian = new Date()
+  todayGregorian.setHours(0, 0, 0, 0)
+  
+  const [todayJalaliYear, todayJalaliMonth, todayJalaliDay] = gregorianToJalali(
+    todayGregorian.getFullYear(),
+    todayGregorian.getMonth() + 1,
+    todayGregorian.getDate()
+  )
 
+  console.log("📅 امروز میلادی:", todayGregorian.toISOString().split('T')[0])
+  console.log("📅 امروز شمسی:", `${todayJalaliYear}/${todayJalaliMonth}/${todayJalaliDay}`)
+
+  // ✅ محاسبه کل بدهی (از امروز به بعد)
+  const totalDebt = installments.reduce((sum, inst) => {
+    if (!inst.payments || !Array.isArray(inst.payments)) {
+      console.warn("⚠️ payments نیست برای:", inst.creditor_name)
+      return sum
+    }
+    
+    const unpaidAmount = inst.payments
+      .filter((p) => {
+        if (p.is_paid) return false
+        
+        const dueDate = new Date(p.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+        
+        // از امروز به بعد (شامل امروز)
+        return dueDate >= todayGregorian
+      })
+      .reduce((s, p) => s + (p.amount || 0), 0)
+    
+    return sum + unpaidAmount
+  }, 0)
+
+  // ✅ محاسبه بدهی ماه جاری (شمسی)
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
+    
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
+        
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
-        if (dueDate < today) return false
-
-        const [dueJy, dueJm, dueJd] = gregorianToJalali(
+        // تبدیل به شمسی
+        const [dueJY, dueJM, dueJD] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
-          dueDate.getDate(),
+          dueDate.getDate()
         )
-        return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
+
+        // ماه جاری شمسی و از امروز به بعد
+        const isCurrentMonth = dueJY === todayJalaliYear && dueJM === todayJalaliMonth
+        const isFromToday = dueJD >= todayJalaliDay
+
+        return isCurrentMonth && isFromToday
       })
-      .reduce((s, p) => s + p.amount, 0)
+      .reduce((s, p) => s + (p.amount || 0), 0)
+    
     return sum + unpaidAmount
   }, 0)
 
-  const totalDebt = installments.reduce((sum, inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) return sum
-    const unpaidAmount = inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
-        const dueDate = new Date(p.due_date)
-        dueDate.setHours(0, 0, 0, 0)
-        return dueDate >= today
-      })
-      .reduce((s, p) => s + p.amount, 0)
-    return sum + unpaidAmount
-  }, 0)
+  console.log("💰 کل بدهی محاسبه شده:", totalDebt)
+  console.log("💰 بدهی ماه جاری محاسبه شده:", currentMonthDebt)
 
+  // ✅ اقساط سررسید این هفته
   const upcomingThisWeek = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
-      .filter((p) => !p.is_paid && getDaysUntilDue(p.due_date) <= 7 && getDaysUntilDue(p.due_date) >= 0)
+      .filter((p) => {
+        if (p.is_paid) return false
+        const daysUntil = getDaysUntilDue(p.due_date)
+        return daysUntil >= 0 && daysUntil <= 7
+      })
       .map((p) => ({ ...inst, payment: p }))
   })
 
+  // ✅ اقساط ماه جاری
   const currentMonthInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
       .filter((p) => {
         if (p.is_paid) return false
+        
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
 
-        if (dueDate < today) return false
+        if (dueDate < todayGregorian) return false
 
-        const [dueJy, dueJm, dueJd] = gregorianToJalali(
+        const [dueJY, dueJM, dueJD] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
-          dueDate.getDate(),
+          dueDate.getDate()
         )
-        return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
+        
+        return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
       })
       .map((p) => ({ ...inst, payment: p }))
   })
 
+  // ✅ اقساط معوقه
   const overdueInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -197,8 +235,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       </div>
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
-
-      <Card className="p-4 bg-gradient-to-br from-rose-500/10 to-orange-500/5 border-rose-500/20">
+        <Card className="p-4 bg-gradient-to-br from-rose-500/10 to-orange-500/5 border-rose-500/20">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">کل بدهی</p>

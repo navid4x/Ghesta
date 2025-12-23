@@ -295,14 +295,47 @@ async function saveToServer(userId: string, installment: Installment): Promise<v
   if (installmentError) throw installmentError
 
   if (payments && payments.length > 0) {
-    const paymentsToInsert = payments.map((p) => ({
-      ...p,
+    const { data: existingPayments } = await supabase
+      .from("installment_payments")
+      .select("id")
+      .eq("installment_id", installment.id)
+
+    const existingIds = new Set((existingPayments || []).map((p) => p.id))
+    const newIds = new Set(payments.map((p) => p.id))
+
+    // This handles the case when installment_count is reduced
+    const toDelete = [...existingIds].filter((id) => !newIds.has(id))
+
+    // Prepare payments for upsert
+    const paymentsToUpsert = payments.map((p) => ({
+      id: p.id,
       installment_id: installment.id,
+      due_date: p.due_date,
+      amount: p.amount,
+      is_paid: p.is_paid,
+      paid_date: p.paid_date || null,
+      updated_at: new Date().toISOString(),
     }))
 
-    const { error: paymentsError } = await supabase.from("installment_payments").upsert(paymentsToInsert)
+    if (toDelete.length > 0) {
+      console.log("[v0] Deleting removed payments:", toDelete)
+      const { error: deleteError } = await supabase.from("installment_payments").delete().in("id", toDelete)
 
-    if (paymentsError) throw paymentsError
+      if (deleteError) {
+        console.error("[v0] Error deleting payments:", deleteError)
+        throw deleteError
+      }
+    }
+
+    console.log("[v0] Upserting payments:", paymentsToUpsert.length)
+    const { error: paymentsError } = await supabase
+      .from("installment_payments")
+      .upsert(paymentsToUpsert, { onConflict: "id" })
+
+    if (paymentsError) {
+      console.error("[v0] Error upserting payments:", paymentsError)
+      throw paymentsError
+    }
   }
 }
 

@@ -134,6 +134,68 @@ export function InstallmentDialog({
     return payments
   }
 
+  function updateExistingPayments(
+    existingPayments: InstallmentPayment[],
+    newStartDate: string,
+    newCount: number,
+    newRecurrence: "daily" | "weekly" | "monthly" | "yearly",
+    newAmount: number,
+  ): InstallmentPayment[] {
+    // Sort existing payments by due_date
+    const sortedExisting = [...existingPayments].sort(
+      (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime(),
+    )
+
+    // Generate new schedule dates
+    const newDates: string[] = []
+    const currentDate = new Date(newStartDate)
+    for (let i = 0; i < newCount; i++) {
+      newDates.push(currentDate.toISOString().split("T")[0])
+      switch (newRecurrence) {
+        case "daily":
+          currentDate.setDate(currentDate.getDate() + 1)
+          break
+        case "weekly":
+          currentDate.setDate(currentDate.getDate() + 7)
+          break
+        case "monthly":
+          currentDate.setMonth(currentDate.getMonth() + 1)
+          break
+        case "yearly":
+          currentDate.setFullYear(currentDate.getFullYear() + 1)
+          break
+      }
+    }
+
+    const newPayments: InstallmentPayment[] = []
+
+    for (let i = 0; i < newCount; i++) {
+      // Try to reuse existing payment at same index (preserve ID and paid status)
+      if (i < sortedExisting.length) {
+        newPayments.push({
+          id: sortedExisting[i].id, // Keep same ID
+          due_date: newDates[i], // Update date
+          amount: newAmount, // Update amount
+          is_paid: sortedExisting[i].is_paid, // Keep paid status
+          paid_date: sortedExisting[i].paid_date, // Keep paid date
+        })
+      } else {
+        // Need to create new payment
+        newPayments.push({
+          id: crypto.randomUUID(),
+          due_date: newDates[i],
+          amount: newAmount,
+          is_paid: false,
+        })
+      }
+    }
+
+    // Payments at index >= newCount will be deleted (handled by saveToServer)
+    // This happens when user reduces installment count
+
+    return newPayments
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -157,6 +219,13 @@ export function InstallmentDialog({
             reminder_days: Number(reminderDays),
             notes,
             updated_at: new Date().toISOString(),
+            payments: updateExistingPayments(
+              installment.payments,
+              startDate,
+              Number(installmentCount),
+              recurrence,
+              Number(installmentAmount),
+            ),
           }
         : {
             id: crypto.randomUUID(),
