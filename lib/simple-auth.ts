@@ -144,13 +144,22 @@ export async function logout(): Promise<void> {
     }
   }
 
-  // پاک کردن همه چیز
-  localStorage.removeItem("auth_user")
-  localStorage.removeItem("password_hash")
-  localStorage.removeItem("session_token")
-  localStorage.removeItem("refresh_token")
+  const keys = Object.keys(localStorage)
+  keys.forEach((key) => {
+    if (
+      key.startsWith("installments-") ||
+      key === "auth_user" ||
+      key === "password_hash" ||
+      key === "session_token" ||
+      key === "refresh_token" ||
+      key === "sync_queue" ||
+      key === "pending_auth"
+    ) {
+      localStorage.removeItem(key)
+    }
+  })
 
-  console.log("[Auth] 🚪 خروج موفق")
+  console.log("[Auth] 🚪 خروج موفق - تمام دیتا پاک شد")
 }
 
 // ============================================
