@@ -16,6 +16,7 @@ import {
   getCurrentPersianMonthRemainingDays,
   toPersianDigits,
   formatCurrencyPersian,
+  isInCurrentPersianMonth,
 } from "@/lib/persian-calendar"
 import { loadInstallments, togglePayment } from "@/lib/data-sync"
 
@@ -100,10 +101,8 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         // Only payments from today onwards
         if (dueDate < today) return false
 
-        const [dueJy, dueJm] = gregorianToJalali(dueDate.getFullYear(), dueDate.getMonth() + 1, dueDate.getDate())
-
-        // Check if payment is in current Persian month and year
-        return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
+        // Check if payment is in current Persian month
+        return isInCurrentPersianMonth(p.due_date)
       })
       .reduce((s, p) => s + p.amount, 0)
     return sum + unpaidAmount
@@ -140,8 +139,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
 
         if (dueDate < today) return false
 
-        const [dueJy, dueJm] = gregorianToJalali(dueDate.getFullYear(), dueDate.getMonth() + 1, dueDate.getDate())
-        return dueJy === currentMonthRemaining.year && dueJm === currentMonthRemaining.month
+        return isInCurrentPersianMonth(p.due_date)
       })
       .map((p) => ({ ...inst, payment: p }))
   })

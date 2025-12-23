@@ -40,6 +40,10 @@ self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
 
+  if (request.method !== "GET") {
+    return
+  }
+
   // نادیده گرفتن درخواست‌های خارجی (غیر از Supabase)
   if (!url.origin.includes(self.location.origin) && !url.origin.includes("supabase.co")) {
     return

@@ -217,3 +217,17 @@ export function parseCurrencyInput(value: string): number {
   const cleaned = english.replace(/[^\d]/g, "")
   return cleaned ? Number.parseInt(cleaned) : 0
 }
+
+export function getCurrentPersianMonthEndDate(): string {
+  const [jy, jm, jd] = getTodayPersian()
+  const monthDays = getPersianMonthDays(jy, jm)
+  const [gy, gm, gd] = jalaliToGregorian(jy, jm, monthDays)
+  return `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
+}
+
+export function isInCurrentPersianMonth(gregorianDate: string): boolean {
+  const [gy, gm, gd] = gregorianDate.split("-").map(Number)
+  const [jy, jm] = gregorianToJalali(gy, gm, gd)
+  const [currentJy, currentJm] = getTodayPersian()
+  return jy === currentJy && jm === currentJm
+}
