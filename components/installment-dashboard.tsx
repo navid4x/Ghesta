@@ -225,7 +225,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <div className="fixed bottom-1 left-3 z-50">
+      <div className="fixed bottom-1 left-4 z-50">
         <Button
           onClick={() => handleAddInstallment()}
           size="icon"
@@ -241,8 +241,9 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">کل بدهی</p>
               <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
-                {formatCurrency(totalDebt)} 
+                {formatCurrency(totalDebt)} تومان
               </p>
+              
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-rose-500/10 shrink-0">
             <CircleDollarSign className="h-4 w-4 md:h-5 md:w-5 text-rose-500" />
@@ -255,7 +256,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-muted-foreground">بدهی ماه جاری</p>
               <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
-                {formatCurrency(currentMonthDebt)} 
+                {formatCurrency(currentMonthDebt)} تومان
               </p>
             </div>
             <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-green-500/10 shrink-0">

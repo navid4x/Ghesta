@@ -110,6 +110,7 @@ return (
             ${!day ? "invisible" : ""}
             ${isToday(day) ? "bg-primary text-primary-foreground font-bold" : ""}
             ${hasInstallment(day) && !isToday(day) ? "bg-rose-500/20 font-semibold" : ""}
+            ${hasInstallment(day) && isToday(day) ? "bg-purple-700 text-white font-bold":""}
             ${day && !isToday(day) && !hasInstallment(day) ? "hover:bg-muted" : ""}
             ${day ? "cursor-pointer" : ""}
           `}

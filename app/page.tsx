@@ -89,16 +89,11 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {pendingOps > 0 && (
-              <Badge variant="secondary" className="gap-1.5">
-                {toPersianDigits(pendingOps)} در صف سینک
-              </Badge>
-            )}
+          <div className="flex items-center justify-start">
 
-            <Button onClick={handleLogout} variant="ghost" size="sm" className="gap-2">
+            <Button onClick={handleLogout} variant="ghost" size="sm">
               <LogOut className="h-4 w-4" />
-              خروج
+              
             </Button>
           </div>
         </div>
