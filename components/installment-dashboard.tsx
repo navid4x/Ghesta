@@ -101,28 +101,22 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     }
     return labels[recurrence as keyof typeof labels] || recurrence
   }
-  // ✅ محاسبه کل بدهی (از امروز به بعد)
-  const totalDebt = installments.reduce((sum, inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) {
-      console.warn("⚠️ payments نیست برای:", inst.creditor_name)
-      return sum
-    }
-    
-    const unpaidAmount = inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
-        
-        const dueDate = new Date(p.due_date)
-        dueDate.setHours(0, 0, 0, 0)
-        
-        // از امروز به بعد (شامل امروز)
-        return dueDate >= todayGregorian
-      })
-      .reduce((s, p) => s + (p.amount || 0), 0)
-    
-    return sum + unpaidAmount
-  }, 0)
 
+// ✅ محاسبه کل بدهی (همه unpaidها)
+const totalDebt = installments.reduce((sum, inst) => {
+  if (!inst.payments || !Array.isArray(inst.payments)) {
+    return sum;
+  }
+  
+  const unpaidAmount = inst.payments
+    .filter((p) => !p.is_paid) 
+    .reduce((s, p) => s + (p.amount || 0), 0);
+  console.log("unpaid: ", unpaidAmount);
+console.log("sum: ", sum);
+
+  return sum + unpaidAmount;
+}, 0);
+console.log("installment: ", installments);
   // ✅ محاسبه بدهی ماه جاری (شمسی)
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
