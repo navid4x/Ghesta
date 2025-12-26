@@ -111,12 +111,9 @@ const totalDebt = installments.reduce((sum, inst) => {
   const unpaidAmount = inst.payments
     .filter((p) => !p.is_paid) 
     .reduce((s, p) => s + (p.amount || 0), 0);
-  console.log("unpaid: ", unpaidAmount);
-console.log("sum: ", sum);
-
   return sum + unpaidAmount;
 }, 0);
-console.log("installment: ", installments);
+
   // ✅ محاسبه بدهی ماه جاری (شمسی)
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
