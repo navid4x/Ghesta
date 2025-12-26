@@ -41,9 +41,9 @@ function clearSyncQueue(): void {
 // 📥 LOAD INSTALLMENTS
 // ============================================
 export async function loadInstallments(userId: string): Promise<Installment[]> {
-  const localData = getLocalInstallments(userId)
-
+  
   if (!navigator.onLine) {
+    const localData = getLocalInstallments(userId)
     return localData
   }
 
