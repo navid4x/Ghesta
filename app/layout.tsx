@@ -48,13 +48,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fa" dir="rtl">
-      <head>
-        <script 
-          src="https://cdn.kavenegar.com/sdk/page.js?appId=a3e32e7f-51d0-49ce-9ca2-adb60dc0a1a3" 
-          defer 
-          charSet="utf-8"
-        ></script>
-      </head>
       <body className={`${vazirmatn.className} font-sans antialiased`}>
         <ServiceWorkerRegistration />
         {children}
