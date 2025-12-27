@@ -74,6 +74,14 @@ export default function AuthPage() {
           description: message.desc,
         })
 
+  if ('Notification' in window) {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      await subscribeUser();
+      console.log("notification access granted.")
+    }
+  }
+
         setTimeout(() => {
           router.push("/")
           router.refresh()
