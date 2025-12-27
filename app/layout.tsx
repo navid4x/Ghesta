@@ -6,6 +6,10 @@ import { Toaster } from "@/components/ui/toaster"
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
 import "./globals.css"
 
+const vazirmatn = Vazirmatn({
+  subsets: ["arabic"],
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   title: "تقویم شمسی - مدیریت رویدادها",
@@ -48,7 +52,7 @@ export default function RootLayout({
         <script 
           src="https://cdn.kavenegar.com/sdk/page.js?appId=a3e32e7f-51d0-49ce-9ca2-adb60dc0a1a3" 
           defer 
-          charset="utf-8"
+          charSet="utf-8"
         ></script>
       </head>
       <body className={`${vazirmatn.className} font-sans antialiased`}>
