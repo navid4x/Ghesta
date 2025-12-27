@@ -3,9 +3,16 @@ import type { Metadata, Viewport } from "next"
 import { Vazirmatn } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/toaster"
+import Script from 'next/script';
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
 import "./globals.css"
 
+<Script
+  src="https://cdn.kavenegar.com/sdk/page.js?appId=a3e32e7f-51d0-49ce-9ca2-adb60dc0a1a3"
+  strategy="beforeInteractive"  // این باعث می‌شه اسکریپت زود لود بشه، مناسب برای سرویس ورکر
+  defer
+  charSet="utf-8"
+/>
 const vazirmatn = Vazirmatn({
   subsets: ["arabic"],
   display: "swap",
