@@ -110,24 +110,9 @@ export default function AuthPage() {
       setLoading(false)
     }
   }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
-      {/* نشانگر وضعیت اینترنت */}
-      <div className="absolute top-4 right-4">
-        {isOnline ? (
-          <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded-full">
-            <Wifi className="h-4 w-4" />
-            <span>آنلاین</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 px-3 py-1.5 rounded-full">
-            <WifiOff className="h-4 w-4" />
-            <span>آفلاین</span>
-          </div>
-        )}
-      </div>
-
+ 
+  return(
+<div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
