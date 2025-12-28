@@ -105,7 +105,7 @@ event.respondWith(
           const response = await fetch(request);
 
           // اگر پاسخ معتبر بود، کش کن
-          if (response && response.status === 200) {
+          if (response && request.method === "GET"  response.status === 200) {
             const responseClone = response.clone();
             const cache = await caches.open(DYNAMIC_CACHE);
             await cache.put(request, responseClone);
