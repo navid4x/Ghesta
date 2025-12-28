@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 // تنظیم VAPID
 webPush.setVapidDetails(
   process.env.VAPID_SUBJECT || "mailto:admin@example.com",
-  process.env.VALID_PUBLIC_KEY || "",
+  process.env.VAPID_PUBLIC_KEY || "",
   process.env.VAPID_PRIVATE_KEY || "",
 )
 
