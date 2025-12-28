@@ -140,13 +140,18 @@ self.addEventListener("fetch", (event) => {
           }
           return response
         })
-        .catch((error) => {
+        .catch(async (error) => {
+          console.log("[SW] Fetch failed for:", request.url, error)
           // برای صفحات HTML، صفحه اصلی را برگردان
           if (request.headers.get("accept")?.includes("text/html")) {
-            return caches.match("/")
+            const fallback = await caches.match("/")
+            if (fallback) return fallback
           }
-          // در غیر این صورت خطا را throw کن
-          throw error
+          // اگر هیچ fallback نبود، یک response خالی برگردان
+          return new Response("Network error", {
+            status: 408,
+            statusText: "Request Timeout",
+          })
         })
     }),
   )
