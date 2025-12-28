@@ -53,6 +53,11 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
+  // نادیده گرفتن درخواست‌های auth - این‌ها نباید کش بشن
+  if (url.pathname.includes("/auth/v1/")) {
+    return // اجازه بده مستقیم به سرور برسه
+  }
+
   // استراتژی Network First برای API و Supabase
   if (url.pathname.startsWith("/api/") || url.origin.includes("supabase.co")) {
     // فقط درخواست‌های GET را کش می‌کنیم
