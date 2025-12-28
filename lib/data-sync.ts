@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client"
 import type { Installment } from "@/lib/types"
+import { getCurrentUser, getAuthUser } from "@/lib/auth-handler"
 
 const SYNC_QUEUE_KEY = "sync_queue"
 const LAST_SYNC_KEY = "last_sync_time"

@@ -66,7 +66,8 @@ export function ServiceWorkerRegistration() {
     return () => {
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
-   
+      // navigator.serviceWorker.removeEventListener برای message اختیاریه
+      // چون component unmount شدنش معمولاً یعنی کل اپ بسته شده
     }
   }, [])
 
