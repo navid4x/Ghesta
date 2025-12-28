@@ -131,7 +131,7 @@ self.addEventListener("fetch", (event) => {
 
       return fetch(request)
         .then((response) => {
-          // فقط درخواست‌های GET را کش می‌کنیم
+          // فقط درخواست‌های GET و پاسخ‌های موفق را کش می‌کنیم
           if (response && response.status === 200 && request.method === "GET") {
             const responseClone = response.clone()
             caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -140,11 +140,13 @@ self.addEventListener("fetch", (event) => {
           }
           return response
         })
-        .catch(() => {
+        .catch((error) => {
           // برای صفحات HTML، صفحه اصلی را برگردان
           if (request.headers.get("accept")?.includes("text/html")) {
             return caches.match("/")
           }
+          // در غیر این صورت خطا را throw کن
+          throw error
         })
     }),
   )
