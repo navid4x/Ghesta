@@ -42,7 +42,7 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
     let subscription = await registration.pushManager.getSubscription()
 
     if (!subscription) {
-      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      const vapidPublicKey = process.env.VAPID_PUBLIC_KEY
       if (!vapidPublicKey) {
         console.error("[v0] VAPID public key not found")
         return false
