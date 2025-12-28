@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import { loginOrSignup, getCurrentUser } from "@/lib/simple-auth"
+import { signInOrSignUp, getCurrentUser } from "@/lib/auth-handler"
 import { WifiOff, Wifi, Wallet } from "lucide-react"
 import { subscribeToPushNotifications } from '@/lib/push-notifications'
 
@@ -28,11 +28,30 @@ export default function AuthPage() {
     }
     checkUser()
 
-    setIsOnline(navigator.onLine)
+    const updateOnlineStatus = () => setIsOnline(navigator.onLine)
+    updateOnlineStatus()
+    
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+    
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+
+    // بررسی اتصال اینترنت
+    if (!navigator.onLine) {
+      toast({
+        title: "⚠️ اتصال اینترنت لازم است",
+        description: "برای ورود یا ثبت‌نام باید به اینترنت متصل باشید",
+        variant: "destructive",
+      })
+      return
+    }
 
     if (password.length < 6) {
       toast({
@@ -46,42 +65,35 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      const result = await loginOrSignup(email, password)
+      const result = await signInOrSignUp(email, password)
 
-      if (result.error) {
+      if (!result.success) {
         toast({
           title: "خطا",
-          description: result.error,
+          description: result.error || "ورود ناموفق بود",
           variant: "destructive",
         })
         setLoading(false)
         return
       }
 
-      if (result.user) {
-        // نمایش پیام بر اساس عملیات انجام شده
-        const messages = {
-          login_online: { title: "✅ خوش آمدید!", desc: "با موفقیت وارد شدید" },
-          signup_online: { title: "✅ حساب شما ایجاد شد!", desc: "خوش آمدید" },
-          login_offline: { title: "📱 ورود آفلاین", desc: "با اطلاعات محلی وارد شدید" },
-          signup_offline: { title: "📱 ثبت‌نام آفلاین", desc: "هنگام اتصال به اینترنت همگام‌سازی می‌شود" },
-        }
-
-        const key = `${result.action}_${result.isOnline ? 'online' : 'offline'}` as keyof typeof messages
-        const message = messages[key]
-
+      // موفق بود
+      const user = await getCurrentUser()
+      
+      if (user) {
         toast({
-          title: message.title,
-          description: message.desc,
+          title: result.isNewUser ? "✅ حساب شما ایجاد شد!" : "✅ خوش آمدید!",
+          description: result.isNewUser ? "خوش آمدید به مدیریت اقساط" : "با موفقیت وارد شدید",
         })
 
-       if ('Notification' in window) {
-         const permission = await Notification.requestPermission();
-         if (permission === 'granted') {
-           await subscribeToPushNotifications(result.user.id);
-           console.log("notification access granted.")
-         }
-       }
+        // درخواست مجوز نوتیفیکیشن
+        if ('Notification' in window) {
+          const permission = await Notification.requestPermission()
+          if (permission === 'granted') {
+            await subscribeToPushNotifications(user.id)
+            console.log("[v0] Notification access granted")
+          }
+        }
 
         setTimeout(() => {
           router.push("/")
@@ -128,7 +140,7 @@ export default function AuthPage() {
             برای ورود یا ثبت‌نام، ایمیل و رمز عبور خود را وارد کنید
             {!isOnline && (
               <span className="block mt-2 text-orange-600 dark:text-orange-400 font-medium">
-                🔒 حالت آفلاین - اطلاعات محلی ذخیره می‌شود
+                ⚠️ برای ورود باید به اینترنت متصل باشید
               </span>
             )}
           </CardDescription>
@@ -146,6 +158,7 @@ export default function AuthPage() {
                 required
                 dir="ltr"
                 className="mt-2"
+                disabled={!isOnline}
               />
             </div>
 
@@ -161,6 +174,7 @@ export default function AuthPage() {
                 minLength={6}
                 dir="ltr"
                 className="mt-2"
+                disabled={!isOnline}
               />
               <p className="mt-2 text-xs text-muted-foreground">حداقل ۶ کاراکتر</p>
             </div>
@@ -168,7 +182,7 @@ export default function AuthPage() {
             <Button 
               type="submit" 
               className="w-full h-11 text-base font-semibold" 
-              disabled={loading}
+              disabled={loading || !isOnline}
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -185,11 +199,12 @@ export default function AuthPage() {
             <p className="text-xs text-center text-muted-foreground leading-relaxed">
               {isOnline ? (
                 <>
-                  🔐 اگر حساب کاربری دارید وارد می‌شوید، در غیر این صورت حساب جدید ایجاد می‌شود
+                  🔐 اگر حساب کاربری دارید وارد می‌شوید، در غیر این صورت حساب جدید ایجاد می‌شود.
+                  پس از ورود می‌توانید حتی در حالت آفلاین نیز کار کنید.
                 </>
               ) : (
                 <>
-                  📱 در حالت آفلاین می‌توانید کار کنید. هنگام اتصال به اینترنت، اطلاعات شما همگام‌سازی می‌شود
+                  📱 برای اولین بار استفاده، باید به اینترنت متصل باشید. سپس می‌توانید آفلاین کار کنید.
                 </>
               )}
             </p>

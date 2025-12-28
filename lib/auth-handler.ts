@@ -148,17 +148,68 @@ export async function signUp(email: string, password: string): Promise<{ success
 }
 
 // ============================================
-// 🚪 خروج
+// 🔄 ورود یا ثبت‌نام خودکار
 // ============================================
-export async function signOut(): Promise<void> {
-  if (navigator.onLine) {
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error("[Auth] Error signing out:", error)
+export async function signInOrSignUp(email: string, password: string): Promise<{ 
+  success: boolean
+  error?: string
+  isNewUser?: boolean
+}> {
+  if (!navigator.onLine) {
+    return {
+      success: false,
+      error: "برای ورود یا ثبت‌نام باید به اینترنت متصل باشید",
     }
   }
-  
-  clearAuthUser()
+
+  try {
+    const supabase = createClient()
+    
+    // اول سعی می‌کنیم login کنیم
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    // اگر login موفق بود
+    if (!signInError && signInData.user) {
+      saveAuthUser({
+        id: signInData.user.id,
+        email: signInData.user.email!,
+        created_at: signInData.user.created_at,
+      })
+      return { success: true, isNewUser: false }
+    }
+
+    // اگر خطا "Invalid login credentials" بود، یعنی یوزر وجود نداره - signup کن
+    if (signInError?.message?.includes("Invalid login credentials") || 
+        signInError?.message?.includes("Invalid email or password")) {
+      
+      console.log("[Auth] User not found, trying signup...")
+      
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+
+      if (signUpError) {
+        return { success: false, error: signUpError.message }
+      }
+
+      if (signUpData.user) {
+        saveAuthUser({
+          id: signUpData.user.id,
+          email: signUpData.user.email!,
+          created_at: signUpData.user.created_at,
+        })
+        return { success: true, isNewUser: true }
+      }
+    }
+
+    // اگر خطای دیگه‌ای بود
+    return { success: false, error: signInError?.message || "خطای ناشناخته" }
+    
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
 }
