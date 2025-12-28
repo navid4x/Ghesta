@@ -41,9 +41,11 @@ function clearSyncQueue(): void {
 // 📥 LOAD INSTALLMENTS
 // ============================================
 export async function loadInstallments(userId: string): Promise<Installment[]> {
+  // ابتدا داده محلی را بخوان
+  const localData = getLocalInstallments(userId)
   
+  // اگر آفلاین است، فقط داده محلی را برگردان
   if (!navigator.onLine) {
-    const localData = getLocalInstallments(userId)
     return localData
   }
 
@@ -82,13 +84,21 @@ export async function loadInstallments(userId: string): Promise<Installment[]> {
       })
     }
 
+    // سینک کردن تغییرات pending
     await processSyncQueue(realUserId)
+    
+    // دریافت داده از سرور
     const serverData = await fetchFromServer(realUserId)
+    
+    // ادغام داده محلی و سرور
     const merged = mergeInstallments(getLocalInstallments(realUserId), serverData, realUserId)
+    
+    // ذخیره نهایی
     saveLocalInstallments(realUserId, merged)
 
     return merged
   } catch (error) {
+    console.error("[v0] Error loading installments:", error)
     return localData
   }
 }
@@ -120,6 +130,7 @@ export async function saveInstallment(userId: string, installment: Installment):
         return
       }
     } catch (error) {
+      console.error("[v0] Error saving to server:", error)
       // Silent - queue for later
     }
   }
@@ -151,6 +162,7 @@ export async function deleteInstallment(userId: string, installmentId: string): 
         return
       }
     } catch (error) {
+      console.error("[v0] Error deleting from server:", error)
       // Silent
     }
   }
@@ -193,6 +205,7 @@ export async function togglePayment(userId: string, installmentId: string, payme
         return
       }
     } catch (error) {
+      console.error("[v0] Error updating payment on server:", error)
       // Silent
     }
   }
@@ -210,6 +223,8 @@ export async function togglePayment(userId: string, installmentId: string, payme
 async function processSyncQueue(realUserId: string): Promise<void> {
   const queue = getSyncQueue()
   if (queue.length === 0) return
+
+  console.log(`[v0] Processing ${queue.length} pending operations...`)
 
   const failedOps: SyncOperation[] = []
 
@@ -236,6 +251,7 @@ async function processSyncQueue(realUserId: string): Promise<void> {
           break
       }
     } catch (error: any) {
+      console.error("[v0] Sync operation failed:", error)
       if (!error.message?.includes("row-level security")) {
         failedOps.push(operation)
       }
@@ -243,8 +259,10 @@ async function processSyncQueue(realUserId: string): Promise<void> {
   }
 
   if (failedOps.length > 0) {
+    console.log(`[v0] ${failedOps.length} operations failed, will retry later`)
     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(failedOps))
   } else {
+    console.log("[v0] All operations synced successfully!")
     clearSyncQueue()
   }
 }
@@ -431,4 +449,36 @@ export function getSyncStatus(): { hasPending: boolean; lastSync: string | null 
 
 export function getPendingOperationsCount(): number {
   return getSyncQueue().length
+}
+
+// ============================================
+// 🔄 MANUAL SYNC (برای وقتی که آنلاین میشه)
+// ============================================
+export async function manualSync(userId: string): Promise<boolean> {
+  if (!navigator.onLine) {
+    console.log("[v0] Cannot sync: offline")
+    return false
+  }
+
+  try {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      console.log("[v0] Cannot sync: not authenticated")
+      return false
+    }
+
+    await processSyncQueue(user.id)
+    const serverData = await fetchFromServer(user.id)
+    const localData = getLocalInstallments(user.id)
+    const merged = mergeInstallments(localData, serverData, user.id)
+    saveLocalInstallments(user.id, merged)
+
+    console.log("[v0] Manual sync completed successfully")
+    return true
+  } catch (error) {
+    console.error("[v0] Manual sync failed:", error)
+    return false
+  }
 }
