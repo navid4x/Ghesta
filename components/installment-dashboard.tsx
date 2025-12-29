@@ -398,9 +398,9 @@ const totalDebt = installments.reduce((sum, inst) => {
                                   </span> 
                                   <CircleDollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
-                                <div className="flex items-center gap-2 flex-wrap justify-end">
+                                <div className="flex items-center  gap-2 flex-wrap justify-end">
                                   <span className="text-muted-foreground whitespace-nowrap">
-                                    ({toPersianDigits(getDaysUntilDue(nextPayment.due_date))} روز مانده)
+                                  ({toPersianDigits(getDaysUntilDue(nextPayment.due_date))} روز مانده) 
                                   </span>
                                   <span className="break-words">{getPersianDate(nextPayment.due_date)}</span>
                                   <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />

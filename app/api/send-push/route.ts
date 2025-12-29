@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
           notifications.push({
             userId: installment.user_id,
             title: "🔔 یادآوری قسط",
-            body: `قسط ${installment.creditor_name} به مبلغ ${amountFormatted} تومان ${installment.reminder_days} روز دیگر سررسید می‌شود`,
+            body: `قسط ${installment.creditor_name} به مبلغ ${amountFormatted} تومان ${installment.reminder_days} روز دیگه میرسه`,
           })
         }
 
@@ -165,8 +165,8 @@ export async function GET(request: NextRequest) {
         if (dueDate.getTime() === today.getTime()) {
           notifications.push({
             userId: installment.user_id,
-            title: "⚠️ قسط امروز سررسید است!",
-            body: `قسط ${installment.creditor_name} به مبلغ ${amountFormatted} تومان امروز سررسید است`,
+            title: `⚠️ قسط ${installment.creditor_name} یادت نره!`,
+            body: `مبلغ قسط ${amountFormatted}`,
           })
         }
       }
