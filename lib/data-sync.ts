@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/auth-handler"
 
 const SYNC_QUEUE_KEY = "sync_queue"
 const LAST_SYNC_KEY = "last_sync_time"
+const CACHE_KEY = "installments_cache"
+const CACHE_DURATION = 30000 // 30 ثانیه
 
 interface SyncOperation {
   id: string
@@ -25,6 +27,9 @@ export function queueSyncOperation(operation: Omit<SyncOperation, "id" | "timest
 
   queue.push(newOperation)
   localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue))
+  
+  // پاک کردن کش بعد از عملیات جدید
+  invalidateCache()
 }
 
 function getSyncQueue(): SyncOperation[] {
@@ -38,6 +43,35 @@ function clearSyncQueue(): void {
   localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString())
 }
 
+function invalidateCache(): void {
+  if (typeof window === "undefined") return
+  localStorage.removeItem(CACHE_KEY)
+}
+
+function getCache(userId: string): { data: Installment[], timestamp: number } | null {
+  if (typeof window === "undefined") return null
+  const stored = localStorage.getItem(`${CACHE_KEY}-${userId}`)
+  if (!stored) return null
+  
+  const cache = JSON.parse(stored)
+  const now = Date.now()
+  
+  // اگر کش منقضی شده باشه
+  if (now - cache.timestamp > CACHE_DURATION) {
+    return null
+  }
+  
+  return cache
+}
+
+function setCache(userId: string, data: Installment[]): void {
+  if (typeof window === "undefined") return
+  localStorage.setItem(`${CACHE_KEY}-${userId}`, JSON.stringify({
+    data,
+    timestamp: Date.now()
+  }))
+}
+
 // ============================================
 // 📥 LOAD INSTALLMENTS
 // ============================================
@@ -45,7 +79,6 @@ export async function loadInstallments(): Promise<Installment[]> {
   console.log("[v0] Loading installments...")
   console.log("[v0] Online status:", navigator.onLine)
   
-  // دریافت کاربر فعلی (از سرور یا cache)
   const user = await getCurrentUser()
   
   if (!user) {
@@ -56,13 +89,16 @@ export async function loadInstallments(): Promise<Installment[]> {
   const userId = user.id
   console.log("[v0] Current user:", user.email, `(${userId})`)
   
+  // ✨ چک کردن کش اول
+  const cache = getCache(userId)
+  if (cache) {
+    console.log("[v0] Using cached data")
+    return cache.data
+  }
+  
   // ابتدا داده محلی را بخوان
   const localData = getLocalInstallments(userId)
   console.log("[v0] Local data count:", localData.length)
-  
-  // چک کردن صف سینک
-  const queue = getSyncQueue()
-  console.log("[v0] Pending operations in queue:", queue.length)
   
   // اگر آفلاین است، فقط داده محلی را برگردان
   if (!navigator.onLine) {
@@ -71,9 +107,14 @@ export async function loadInstallments(): Promise<Installment[]> {
   }
 
   try {
-    // سینک کردن تغییرات pending
-    console.log("[v0] Starting sync process...")
-    await processSyncQueue(userId)
+    // ✨ بهینه‌سازی: فقط یکبار sync و یکبار fetch
+    const queue = getSyncQueue()
+    console.log("[v0] Pending operations in queue:", queue.length)
+    
+    if (queue.length > 0) {
+      console.log("[v0] Starting sync process...")
+      await processSyncQueue(userId)
+    }
     
     // دریافت داده از سرور
     console.log("[v0] Fetching from server...")
@@ -86,6 +127,9 @@ export async function loadInstallments(): Promise<Installment[]> {
     
     // ذخیره نهایی
     saveLocalInstallments(userId, merged)
+    
+    // ✨ ذخیره در کش
+    setCache(userId, merged)
 
     return merged
   } catch (error) {
@@ -95,7 +139,7 @@ export async function loadInstallments(): Promise<Installment[]> {
 }
 
 // ============================================
-// 💾 SAVE INSTALLMENT
+// 💾 SAVE INSTALLMENT - بهینه شده
 // ============================================
 export async function saveInstallment(installment: Installment): Promise<void> {
   const user = await getCurrentUser()
@@ -115,6 +159,7 @@ export async function saveInstallment(installment: Installment): Promise<void> {
   }
 
   saveLocalInstallments(userId, installments)
+  invalidateCache() // ✨ پاک کردن کش
 
   if (navigator.onLine) {
     try {
@@ -133,7 +178,7 @@ export async function saveInstallment(installment: Installment): Promise<void> {
 }
 
 // ============================================
-// 🗑️ DELETE INSTALLMENT
+// 🗑️ DELETE INSTALLMENT - بهینه شده
 // ============================================
 export async function deleteInstallment(installmentId: string): Promise<void> {
   const user = await getCurrentUser()
@@ -146,6 +191,7 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
   const installments = getLocalInstallments(userId)
   const filtered = installments.filter((i) => i.id !== installmentId)
   saveLocalInstallments(userId, filtered)
+  invalidateCache() // ✨ پاک کردن کش
 
   if (navigator.onLine) {
     try {
@@ -164,7 +210,7 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
 }
 
 // ============================================
-// ✅ TOGGLE PAYMENT
+// ✅ TOGGLE PAYMENT - بهینه شده
 // ============================================
 export async function togglePayment(installmentId: string, paymentId: string): Promise<void> {
   const user = await getCurrentUser()
@@ -187,11 +233,25 @@ export async function togglePayment(installmentId: string, paymentId: string): P
   installment.updated_at = new Date().toISOString()
 
   saveLocalInstallments(userId, installments)
+  invalidateCache() // ✨ پاک کردن کش
 
+  // ✨ بهینه‌سازی: فقط یک درخواست به سرور
   if (navigator.onLine) {
     try {
-      await updatePaymentOnServer(paymentId, payment.is_paid, payment.paid_date)
-      await updateInstallmentTimestamp(installmentId)
+      const supabase = createClient()
+      
+      // ✨ یک transaction برای هر دو عملیات
+      await supabase.rpc('toggle_payment_and_update_installment', {
+        p_payment_id: paymentId,
+        p_installment_id: installmentId,
+        p_is_paid: payment.is_paid,
+        p_paid_date: payment.paid_date || null,
+      }).catch(async () => {
+        // اگر function وجود نداشت، از روش قدیمی استفاده کن
+        await updatePaymentOnServer(paymentId, payment.is_paid, payment.paid_date)
+        await updateInstallmentTimestamp(installmentId)
+      })
+      
       return
     } catch (error) {
       console.error("[v0] Error updating payment on server:", error)
@@ -387,35 +447,27 @@ function saveLocalInstallments(userId: string, installments: Installment[]): voi
 }
 
 function mergeInstallments(local: Installment[], server: Installment[], realUserId?: string): Installment[] {
-  // سرور source of truth است
-  // فقط آیتم‌های local که در صف سینک هستند را نگه می‌داریم
-  
   const queue = getSyncQueue()
   const pendingIds = new Set(queue.map(op => op.data.id || op.data.installmentId).filter(Boolean))
   
   const merged: Installment[] = []
   const serverIds = new Set<string>()
 
-  // اول تمام داده‌های سرور را اضافه کن
   for (const serverItem of server) {
     merged.push(serverItem)
     serverIds.add(serverItem.id)
   }
 
-  // فقط آیتم‌های local که pending هستند و در سرور نیستند را اضافه کن
   for (const localItem of local) {
-    // اگر در سرور هست، از سرور استفاده کن (قبلاً اضافه شده)
     if (serverIds.has(localItem.id)) {
       continue
     }
     
-    // اگر در صف سینک هست، نگهش دار (هنوز آپلود نشده)
     if (pendingIds.has(localItem.id)) {
       merged.push(localItem)
       continue
     }
     
-    // در غیر این صورت، این آیتم در سرور حذف شده - نگهش ندار
     console.log("[v0] Item deleted on server, removing from local:", localItem.id)
   }
 
@@ -441,7 +493,7 @@ export function getPendingOperationsCount(): number {
 }
 
 // ============================================
-// 🔄 MANUAL SYNC (برای وقتی که آنلاین میشه)
+// 🔄 MANUAL SYNC
 // ============================================
 export async function manualSync(): Promise<boolean> {
   if (!navigator.onLine) {
@@ -462,6 +514,7 @@ export async function manualSync(): Promise<boolean> {
     const localData = getLocalInstallments(user.id)
     const merged = mergeInstallments(localData, serverData, user.id)
     saveLocalInstallments(user.id, merged)
+    setCache(user.id, merged) // ✨ ذخیره در کش
 
     console.log("[v0] Manual sync completed successfully")
     return true

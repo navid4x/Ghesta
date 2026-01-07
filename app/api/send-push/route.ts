@@ -125,7 +125,13 @@ export async function GET(request: NextRequest) {
     // ========================================
     // 2️⃣ پردازش هر قسط
     // ========================================
-    const notifications: Array<{ userId: string; title: string; body: string }> = []
+    const notifications: Array<{ 
+      userId: string
+      title: string
+      body: string
+      installmentId: string
+      paymentId: string
+    }> = []
 
     for (const installment of installments) {
       const payments = Array.isArray(installment.installment_payments) 
@@ -156,6 +162,8 @@ export async function GET(request: NextRequest) {
             userId: installment.user_id,
             title: "🔔 یادآوری قسط",
             body: `قسط ${installment.creditor_name} به مبلغ ${amountFormatted} تومان ${installment.reminder_days} روز دیگه میرسه`,
+            installmentId: installment.id,
+            paymentId: payment.id,
           })
         }
 
@@ -167,6 +175,8 @@ export async function GET(request: NextRequest) {
             userId: installment.user_id,
             title: `⚠️ قسط ${installment.creditor_name} یادت نره!`,
             body: `مبلغ قسط ${amountFormatted}`,
+            installmentId: installment.id,
+            paymentId: payment.id,
           })
         }
       }
@@ -184,42 +194,61 @@ export async function GET(request: NextRequest) {
     // 3️⃣ ارسال نوتیفیکیشن‌ها
     // ========================================
     let sentCount = 0
-    const failedUsers: string[] = []
+    const failedNotifications: string[] = []
 
+    // 🔧 FIX: گروه‌بندی نوتیف‌ها بر اساس userId
+    const notifsByUser = new Map<string, typeof notifications>()
     for (const notif of notifications) {
+      if (!notifsByUser.has(notif.userId)) {
+        notifsByUser.set(notif.userId, [])
+      }
+      notifsByUser.get(notif.userId)!.push(notif)
+    }
+
+    // ارسال برای هر کاربر
+    for (const [userId, userNotifications] of notifsByUser) {
+      // گرفتن subscription های این کاربر یکبار
       const { data: subscriptions } = await supabase
         .from("push_subscriptions")
         .select("*")
-        .eq("user_id", notif.userId)
+        .eq("user_id", userId)
 
       if (!subscriptions?.length) {
-        failedUsers.push(notif.userId)
+        console.log(`[Cron] No subscriptions for user ${userId}`)
+        failedNotifications.push(...userNotifications.map(n => n.installmentId))
         continue
       }
 
-      for (const sub of subscriptions) {
-        try {
-          await webPush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth },
-            },
-            JSON.stringify({
-              title: notif.title,
-              body: notif.body,
-              url: "/",
-            }),
-          )
-          sentCount++
-        } catch (err: any) {
-          console.error(`[Cron] Failed to send to ${sub.endpoint}:`, err.message)
-          
-          // اگر subscription منقضی شده، حذفش کن
-          if (err.statusCode === 410 || err.statusCode === 404) {
-            await supabase
-              .from("push_subscriptions")
-              .delete()
-              .eq("endpoint", sub.endpoint)
+      // ارسال تک تک نوتیف‌ها به همه دستگاه‌های این کاربر
+      for (const notif of userNotifications) {
+        for (const sub of subscriptions) {
+          try {
+            await webPush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              JSON.stringify({
+                title: notif.title,
+                body: notif.body,
+                url: "/",
+                // ✨ استفاده از tag منحصر به فرد برای هر نوتیف
+                tag: `installment-${notif.installmentId}-${notif.paymentId}`,
+                // ✨ این باعث میشه هر نوتیف جداگانه نمایش داده بشه
+                renotify: true,
+              }),
+            )
+            sentCount++
+          } catch (err: any) {
+            console.error(`[Cron] Failed to send to ${sub.endpoint}:`, err.message)
+            
+            // اگر subscription منقضی شده، حذفش کن
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              await supabase
+                .from("push_subscriptions")
+                .delete()
+                .eq("endpoint", sub.endpoint)
+            }
           }
         }
       }
@@ -230,7 +259,7 @@ export async function GET(request: NextRequest) {
       checked: installments.length,
       notificationsQueued: notifications.length,
       sent: sentCount,
-      failedUsers: failedUsers.length > 0 ? failedUsers : undefined,
+      failed: failedNotifications.length > 0 ? failedNotifications.length : undefined,
     })
   } catch (error: any) {
     console.error("[Cron] Error:", error)
