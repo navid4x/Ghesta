@@ -2,13 +2,15 @@
 
 import { InstallmentDashboard } from "@/components/installment-dashboard"
 import { NotificationSettings } from "@/components/notification-settings"
-import { Wallet, LogOut } from "lucide-react"
+import { Wallet, LogOut, Wifi, WifiOff } from "lucide-react"
 import { getTodayPersian, persianMonths } from "@/lib/persian-calendar"
 import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { getPendingOperationsCount } from "@/lib/data-sync"
+import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
+import { Badge } from "@/components/ui/badge"
 
 export default function Home() {
   const router = useRouter()
@@ -29,6 +31,9 @@ export default function Home() {
         setUser(currentUser)
         setLoading(false)
         updatePendingOps()
+        
+        // ✨ شروع Background Sync
+        startBackgroundSync()
       }
     }
 
@@ -47,14 +52,27 @@ export default function Home() {
       }
     })
 
-    return cleanup
+    // ✨ گوش دادن به sync-complete event
+    const handleSyncComplete = () => {
+      console.log("[v0] Sync complete!")
+      updatePendingOps()
+    }
+    
+    window.addEventListener('sync-complete', handleSyncComplete)
+
+    return () => {
+      cleanup()
+      stopBackgroundSync() // ✨ توقف Background Sync
+      window.removeEventListener('sync-complete', handleSyncComplete)
+    }
   }, [router])
 
   function updatePendingOps() {
-    setPendingOps(getPendingOperationsCount())
+    setPendingOps(getQueueSize())
   }
 
   async function handleLogout() {
+    stopBackgroundSync() // ✨ توقف قبل از logout
     await logout()
     router.push("/auth")
     router.refresh()
@@ -88,7 +106,30 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center justify-start">
+          <div className="flex items-center gap-3">
+            {/* ✨ نمایش وضعیت sync */}
+            {pendingOps > 0 && (
+              <Badge variant="secondary" className="gap-1">
+                {isOnline ? (
+                  <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    در حال همگام‌سازی...
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-3 w-3" />
+                    {toPersianDigits(pendingOps)} در انتظار
+                  </>
+                )}
+              </Badge>
+            )}
+            
+            {isOnline ? (
+              <Wifi className="h-4 w-4 text-green-500" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-orange-500" />
+            )}
+            
             <Button onClick={handleLogout} variant="ghost" size="sm">
               <LogOut className="h-4 w-4" />
             </Button>
@@ -97,10 +138,7 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* 🔔 بخش تنظیمات نوتیفیکیشن */}
         <NotificationSettings userId={user.id} />
-        
-        {/* داشبورد اقساط */}
         <InstallmentDashboard userId={user.id} />
       </main>
     </div>

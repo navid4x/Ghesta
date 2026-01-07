@@ -1,47 +1,10 @@
 import { createClient } from "@/lib/supabase/client"
 import type { Installment } from "@/lib/types"
 import { getCurrentUser } from "@/lib/auth-handler"
+import { addToQueue } from "@/lib/background-sync"
 
-const SYNC_QUEUE_KEY = "sync_queue"
-const LAST_SYNC_KEY = "last_sync_time"
 const CACHE_KEY = "installments_cache"
 const CACHE_DURATION = 30000 // 30 ثانیه
-
-interface SyncOperation {
-  id: string
-  type: "create" | "update" | "delete" | "toggle_payment"
-  entityType: "installment" | "payment"
-  data: any
-  timestamp: string
-}
-
-export function queueSyncOperation(operation: Omit<SyncOperation, "id" | "timestamp">): void {
-  if (typeof window === "undefined") return
-
-  const queue = getSyncQueue()
-  const newOperation: SyncOperation = {
-    ...operation,
-    id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    timestamp: new Date().toISOString(),
-  }
-
-  queue.push(newOperation)
-  localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue))
-  
-  // پاک کردن کش بعد از عملیات جدید
-  invalidateCache()
-}
-
-function getSyncQueue(): SyncOperation[] {
-  if (typeof window === "undefined") return []
-  const stored = localStorage.getItem(SYNC_QUEUE_KEY)
-  return stored ? JSON.parse(stored) : []
-}
-
-function clearSyncQueue(): void {
-  localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify([]))
-  localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString())
-}
 
 function invalidateCache(): void {
   if (typeof window === "undefined") return
@@ -56,7 +19,6 @@ function getCache(userId: string): { data: Installment[], timestamp: number } | 
   const cache = JSON.parse(stored)
   const now = Date.now()
   
-  // اگر کش منقضی شده باشه
   if (now - cache.timestamp > CACHE_DURATION) {
     return null
   }
@@ -73,82 +35,86 @@ function setCache(userId: string, data: Installment[]): void {
 }
 
 // ============================================
-// 📥 LOAD INSTALLMENTS
+// 📥 LOAD INSTALLMENTS - فوق سریع
 // ============================================
 export async function loadInstallments(): Promise<Installment[]> {
-  console.log("[v0] Loading installments...")
-  console.log("[v0] Online status:", navigator.onLine)
-  
   const user = await getCurrentUser()
   
   if (!user) {
-    console.log("[v0] No authenticated user found")
+    console.log("[Sync] No authenticated user found")
     return []
   }
   
   const userId = user.id
-  console.log("[v0] Current user:", user.email, `(${userId})`)
   
-  // ✨ چک کردن کش اول
+  // ✅ 1. چک کردن کش (فوری!)
   const cache = getCache(userId)
   if (cache) {
-    console.log("[v0] Using cached data")
+    console.log("[Sync] ⚡ Using cached data")
+    // در پس‌زمینه refresh کن
+    refreshDataInBackground(userId)
     return cache.data
   }
   
-  // ابتدا داده محلی را بخوان
+  // ✅ 2. داده محلی (فوری!)
   const localData = getLocalInstallments(userId)
-  console.log("[v0] Local data count:", localData.length)
+  console.log("[Sync] 📂 Local data count:", localData.length)
   
-  // اگر آفلاین است، فقط داده محلی را برگردان
+  // ✅ 3. اگر آفلاین است، همین الان برگردون
   if (!navigator.onLine) {
-    console.log("[v0] Offline mode - returning local data only")
+    console.log("[Sync] 📴 Offline mode")
     return localData
   }
-
+  
+  // ✅ 4. اگر داده محلی داره، اونو برگردون و در پس‌زمینه از سرور بگیر
+  if (localData.length > 0) {
+    console.log("[Sync] ⚡ Returning local data, refreshing in background...")
+    refreshDataInBackground(userId)
+    return localData
+  }
+  
+  // ✅ 5. فقط اگر هیچ داده‌ای نداشت، صبر کن تا از سرور بگیره
+  console.log("[Sync] 🌐 First load - fetching from server...")
   try {
-    // ✨ بهینه‌سازی: فقط یکبار sync و یکبار fetch
-    const queue = getSyncQueue()
-    console.log("[v0] Pending operations in queue:", queue.length)
-    
-    if (queue.length > 0) {
-      console.log("[v0] Starting sync process...")
-      await processSyncQueue(userId)
-    }
-    
-    // دریافت داده از سرور
-    console.log("[v0] Fetching from server...")
     const serverData = await fetchFromServer(userId)
-    console.log("[v0] Server data count:", serverData.length)
-    
-    // ادغام داده محلی و سرور
-    const merged = mergeInstallments(localData, serverData, userId)
-    console.log("[v0] Merged data count:", merged.length)
-    
-    // ذخیره نهایی
-    saveLocalInstallments(userId, merged)
-    
-    // ✨ ذخیره در کش
-    setCache(userId, merged)
-
-    return merged
+    saveLocalInstallments(userId, serverData)
+    setCache(userId, serverData)
+    return serverData
   } catch (error) {
-    console.error("[v0] Error loading installments:", error)
+    console.error("[Sync] Error fetching from server:", error)
     return localData
   }
 }
 
 // ============================================
-// 💾 SAVE INSTALLMENT - بهینه شده
+// 🔄 Refresh در پس‌زمینه
+// ============================================
+async function refreshDataInBackground(userId: string): Promise<void> {
+  try {
+    const serverData = await fetchFromServer(userId)
+    const localData = getLocalInstallments(userId)
+    const merged = mergeInstallments(localData, serverData, userId)
+    saveLocalInstallments(userId, merged)
+    setCache(userId, merged)
+    
+    // اطلاع‌رسانی به UI
+    window.dispatchEvent(new CustomEvent('data-refreshed', { detail: merged }))
+    console.log("[Sync] ✨ Background refresh complete")
+  } catch (error) {
+    console.error("[Sync] Background refresh failed:", error)
+  }
+}
+
+// ============================================
+// 💾 SAVE INSTALLMENT - فوری!
 // ============================================
 export async function saveInstallment(installment: Installment): Promise<void> {
   const user = await getCurrentUser()
-  if (!user) {
-    console.error("[v0] Cannot save: No authenticated user")
-    return
-  }
+  if (!user) return
 
   const userId = user.id
+  
+  // ✅ 1. فوری روی localStorage بنویس (بدون تاخیر!)
   const installments = getLocalInstallments(userId)
   const existingIndex = installments.findIndex((i) => i.id === installment.id)
 
@@ -159,50 +125,37 @@ export async function saveInstallment(installment: Installment): Promise<void> {
   }
 
   saveLocalInstallments(userId, installments)
-  invalidateCache() // ✨ پاک کردن کش
-
-  if (navigator.onLine) {
-    try {
-      await saveToServer(userId, { ...installment, user_id: userId })
-      return
-    } catch (error) {
-      console.error("[v0] Error saving to server:", error)
-    }
-  }
-
-  queueSyncOperation({
+  invalidateCache()
+  
+  console.log("[Sync] ⚡ Saved locally (instant!)")
+  
+  // ✅ 2. اضافه کردن به صف برای sync در پس‌زمینه
+  addToQueue({
     type: existingIndex >= 0 ? "update" : "create",
     entityType: "installment",
-    data: installment,
+    data: { ...installment, user_id: userId },
   })
 }
 
 // ============================================
-// 🗑️ DELETE INSTALLMENT - بهینه شده
+// 🗑️ DELETE INSTALLMENT - فوری!
 // ============================================
 export async function deleteInstallment(installmentId: string): Promise<void> {
   const user = await getCurrentUser()
-  if (!user) {
-    console.error("[v0] Cannot delete: No authenticated user")
-    return
-  }
+  if (!user) return
 
   const userId = user.id
+  
+  // ✅ فوری از localStorage حذف کن
   const installments = getLocalInstallments(userId)
   const filtered = installments.filter((i) => i.id !== installmentId)
   saveLocalInstallments(userId, filtered)
-  invalidateCache() // ✨ پاک کردن کش
-
-  if (navigator.onLine) {
-    try {
-      await deleteFromServer(installmentId)
-      return
-    } catch (error) {
-      console.error("[v0] Error deleting from server:", error)
-    }
-  }
-
-  queueSyncOperation({
+  invalidateCache()
+  
+  console.log("[Sync] ⚡ Deleted locally (instant!)")
+  
+  // ✅ اضافه به صف
+  addToQueue({
     type: "delete",
     entityType: "installment",
     data: { id: installmentId },
@@ -210,19 +163,17 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
 }
 
 // ============================================
-// ✅ TOGGLE PAYMENT - بهینه شده
+// ✅ TOGGLE PAYMENT - فوری!
 // ============================================
 export async function togglePayment(installmentId: string, paymentId: string): Promise<void> {
   const user = await getCurrentUser()
-  if (!user) {
-    console.error("[v0] Cannot toggle payment: No authenticated user")
-    return
-  }
+  if (!user) return
 
   const userId = user.id
+  
+  // ✅ فوری تغییر بده
   const installments = getLocalInstallments(userId)
   const installment = installments.find((i) => i.id === installmentId)
-
   if (!installment) return
 
   const payment = installment.payments.find((p) => p.id === paymentId)
@@ -233,209 +184,49 @@ export async function togglePayment(installmentId: string, paymentId: string): P
   installment.updated_at = new Date().toISOString()
 
   saveLocalInstallments(userId, installments)
-  invalidateCache() // ✨ پاک کردن کش
-
-  // ✨ بهینه‌سازی: فقط یک درخواست به سرور
-  if (navigator.onLine) {
-    try {
-      const supabase = createClient()
-      
-      // ✨ یک transaction برای هر دو عملیات
-      await supabase.rpc('toggle_payment_and_update_installment', {
-        p_payment_id: paymentId,
-        p_installment_id: installmentId,
-        p_is_paid: payment.is_paid,
-        p_paid_date: payment.paid_date || null,
-      }).catch(async () => {
-        // اگر function وجود نداشت، از روش قدیمی استفاده کن
-        await updatePaymentOnServer(paymentId, payment.is_paid, payment.paid_date)
-        await updateInstallmentTimestamp(installmentId)
-      })
-      
-      return
-    } catch (error) {
-      console.error("[v0] Error updating payment on server:", error)
-    }
-  }
-
-  queueSyncOperation({
+  invalidateCache()
+  
+  console.log("[Sync] ⚡ Payment toggled locally (instant!)")
+  
+  // ✅ اضافه به صف
+  addToQueue({
     type: "toggle_payment",
     entityType: "payment",
-    data: { installmentId, paymentId, isPaid: payment.is_paid, paidDate: payment.paid_date },
+    data: { 
+      installmentId, 
+      paymentId, 
+      isPaid: payment.is_paid, 
+      paidDate: payment.paid_date 
+    },
   })
-}
-
-// ============================================
-// 🔄 PROCESS SYNC QUEUE
-// ============================================
-async function processSyncQueue(realUserId: string): Promise<void> {
-  const queue = getSyncQueue()
-  if (queue.length === 0) return
-
-  console.log(`[v0] Processing ${queue.length} pending operations...`)
-
-  const failedOps: SyncOperation[] = []
-
-  for (const operation of queue) {
-    try {
-      switch (operation.type) {
-        case "create":
-        case "update":
-          const installmentData = {
-            ...operation.data,
-            user_id: realUserId,
-          }
-          await saveToServer(realUserId, installmentData)
-          break
-        case "delete":
-          await deleteFromServer(operation.data.id)
-          break
-        case "toggle_payment":
-          await updatePaymentOnServer(operation.data.paymentId, operation.data.isPaid, operation.data.paidDate)
-          await updateInstallmentTimestamp(operation.data.installmentId)
-          break
-      }
-    } catch (error: any) {
-      console.error("[v0] Sync operation failed:", error)
-      if (!error.message?.includes("row-level security")) {
-        failedOps.push(operation)
-      }
-    }
-  }
-
-  if (failedOps.length > 0) {
-    console.log(`[v0] ${failedOps.length} operations failed, will retry later`)
-    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(failedOps))
-  } else {
-    console.log("[v0] All operations synced successfully!")
-    clearSyncQueue()
-  }
 }
 
 // ============================================
 // 🌐 SERVER OPERATIONS
 // ============================================
-
 async function fetchFromServer(userId: string): Promise<Installment[]> {
   const supabase = createClient()
 
-  const { data: installmentsData, error: installmentsError } = await supabase
+  const { data: installmentsData, error } = await supabase
     .from("installments")
-    .select("*")
+    .select(`
+      *,
+      installment_payments(*)
+    `)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
 
-  if (installmentsError) throw installmentsError
-
-  const installments: Installment[] = []
-
-  for (const inst of installmentsData || []) {
-    const { data: paymentsData } = await supabase
-      .from("installment_payments")
-      .select("*")
-      .eq("installment_id", inst.id)
-      .order("due_date", { ascending: true })
-
-    installments.push({
-      ...inst,
-      payments: paymentsData || [],
-    })
-  }
-
-  return installments
-}
-
-async function saveToServer(userId: string, installment: Installment): Promise<void> {
-  const supabase = createClient()
-
-  const { payments, ...installmentData } = installment
-
-  const { error: installmentError } = await supabase.from("installments").upsert({
-    ...installmentData,
-    user_id: userId,
-  })
-
-  if (installmentError) throw installmentError
-
-  if (payments && payments.length > 0) {
-    const { data: existingPayments } = await supabase
-      .from("installment_payments")
-      .select("id")
-      .eq("installment_id", installment.id)
-
-    const existingIds = new Set((existingPayments || []).map((p) => p.id))
-    const newIds = new Set(payments.map((p) => p.id))
-
-    const toDelete = [...existingIds].filter((id) => !newIds.has(id))
-
-    const paymentsToUpsert = payments.map((p) => ({
-      id: p.id,
-      installment_id: installment.id,
-      due_date: p.due_date,
-      amount: p.amount,
-      is_paid: p.is_paid,
-      paid_date: p.paid_date || null,
-      updated_at: new Date().toISOString(),
-    }))
-
-    if (toDelete.length > 0) {
-      console.log("[v0] Deleting removed payments:", toDelete)
-      const { error: deleteError } = await supabase.from("installment_payments").delete().in("id", toDelete)
-
-      if (deleteError) {
-        console.error("[v0] Error deleting payments:", deleteError)
-        throw deleteError
-      }
-    }
-
-    console.log("[v0] Upserting payments:", paymentsToUpsert.length)
-    const { error: paymentsError } = await supabase
-      .from("installment_payments")
-      .upsert(paymentsToUpsert, { onConflict: "id" })
-
-    if (paymentsError) {
-      console.error("[v0] Error upserting payments:", paymentsError)
-      throw paymentsError
-    }
-  }
-}
-
-async function deleteFromServer(installmentId: string): Promise<void> {
-  const supabase = createClient()
-  const { error } = await supabase.from("installments").delete().eq("id", installmentId)
   if (error) throw error
-}
 
-async function updatePaymentOnServer(paymentId: string, isPaid: boolean, paidDate?: string): Promise<void> {
-  const supabase = createClient()
-
-  const { error } = await supabase
-    .from("installment_payments")
-    .update({
-      is_paid: isPaid,
-      paid_date: paidDate || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", paymentId)
-
-  if (error) throw error
-}
-
-async function updateInstallmentTimestamp(installmentId: string): Promise<void> {
-  const supabase = createClient()
-
-  const { error } = await supabase
-    .from("installments")
-    .update({ updated_at: new Date().toISOString() })
-    .eq("id", installmentId)
-
-  if (error) throw error
+  return (installmentsData || []).map((inst: any) => ({
+    ...inst,
+    payments: inst.installment_payments || [],
+  }))
 }
 
 // ============================================
-// 💾 LOCAL STORAGE HELPERS
+// 💾 LOCAL STORAGE
 // ============================================
-
 function getLocalInstallments(userId: string): Installment[] {
   if (typeof window === "undefined") return []
   const stored = localStorage.getItem(`installments-${userId}`)
@@ -446,80 +237,23 @@ function saveLocalInstallments(userId: string, installments: Installment[]): voi
   localStorage.setItem(`installments-${userId}`, JSON.stringify(installments))
 }
 
-function mergeInstallments(local: Installment[], server: Installment[], realUserId?: string): Installment[] {
-  const queue = getSyncQueue()
-  const pendingIds = new Set(queue.map(op => op.data.id || op.data.installmentId).filter(Boolean))
+function mergeInstallments(local: Installment[], server: Installment[], userId: string): Installment[] {
+  const merged = new Map<string, Installment>()
   
-  const merged: Installment[] = []
-  const serverIds = new Set<string>()
-
-  for (const serverItem of server) {
-    merged.push(serverItem)
-    serverIds.add(serverItem.id)
-  }
-
-  for (const localItem of local) {
-    if (serverIds.has(localItem.id)) {
-      continue
+  // Server data first (source of truth)
+  server.forEach(item => merged.set(item.id, item))
+  
+  // Local data for items not yet synced
+  local.forEach(item => {
+    if (!merged.has(item.id)) {
+      merged.set(item.id, item)
     }
-    
-    if (pendingIds.has(localItem.id)) {
-      merged.push(localItem)
-      continue
-    }
-    
-    console.log("[v0] Item deleted on server, removing from local:", localItem.id)
-  }
-
-  return merged
-}
-
-// ============================================
-// 🔔 SYNC STATUS
-// ============================================
-
-export function getSyncStatus(): { hasPending: boolean; lastSync: string | null } {
-  const queue = getSyncQueue()
-  const lastSync = localStorage.getItem(LAST_SYNC_KEY)
-
-  return {
-    hasPending: queue.length > 0,
-    lastSync,
-  }
+  })
+  
+  return Array.from(merged.values())
 }
 
 export function getPendingOperationsCount(): number {
-  return getSyncQueue().length
-}
-
-// ============================================
-// 🔄 MANUAL SYNC
-// ============================================
-export async function manualSync(): Promise<boolean> {
-  if (!navigator.onLine) {
-    console.log("[v0] Cannot sync: offline")
-    return false
-  }
-
-  try {
-    const user = await getCurrentUser()
-    
-    if (!user) {
-      console.log("[v0] Cannot sync: not authenticated")
-      return false
-    }
-
-    await processSyncQueue(user.id)
-    const serverData = await fetchFromServer(user.id)
-    const localData = getLocalInstallments(user.id)
-    const merged = mergeInstallments(localData, serverData, user.id)
-    saveLocalInstallments(user.id, merged)
-    setCache(user.id, merged) // ✨ ذخیره در کش
-
-    console.log("[v0] Manual sync completed successfully")
-    return true
-  } catch (error) {
-    console.error("[v0] Manual sync failed:", error)
-    return false
-  }
+  const { getQueueSize } = require("@/lib/background-sync")
+  return getQueueSize()
 }
