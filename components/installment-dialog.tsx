@@ -20,6 +20,7 @@ import {
 } from "@/lib/persian-calendar"
 import { PersianDatePicker } from "@/components/persian-date-picker"
 import { saveInstallment, deleteInstallment } from "@/lib/data-sync"
+import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 
 interface InstallmentDialogProps {
   open: boolean
@@ -43,7 +44,7 @@ export function InstallmentDialog({
   const [itemDescription, setItemDescription] = useState("")
   const [totalAmount, setTotalAmount] = useState("")
   const [totalAmountDisplay, setTotalAmountDisplay] = useState("")
-  const [installmentAmount, setInstallmentAmount] = useState("0") // محاسبه خودکار
+  const [installmentAmount, setInstallmentAmount] = useState("0")
   const [startDatePersian, setStartDatePersian] = useState({ year: 1403, month: 1, day: 1 })
   const [installmentCount, setInstallmentCount] = useState("12")
   const [recurrence, setRecurrence] = useState<"daily" | "weekly" | "monthly" | "yearly" | "never">("monthly")
@@ -51,16 +52,14 @@ export function InstallmentDialog({
   const [reminderDays, setReminderDays] = useState("0")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // ========================================
-  // 🧮 محاسبه خودکار مبلغ هر قسط
-  // ========================================
   useEffect(() => {
     const total = Number(totalAmount) || 0
-    const count = recurrence === 'never' ? 1 : (Number(installmentCount) || 1)
-    
+    const count = recurrence === "never" ? 1 : Number(installmentCount) || 1
+
     if (total > 0 && count > 0) {
-      const perInstallment = Math.ceil(total / count) // گرد کردن به بالا
+      const perInstallment = Math.ceil(total / count)
       setInstallmentAmount(perInstallment.toString())
     } else {
       setInstallmentAmount("0")
@@ -68,8 +67,8 @@ export function InstallmentDialog({
   }, [totalAmount, installmentCount, recurrence])
 
   useEffect(() => {
-    if (recurrence === 'never') {
-      setInstallmentCount('1')
+    if (recurrence === "never") {
+      setInstallmentCount("1")
     }
   }, [recurrence])
 
@@ -122,10 +121,10 @@ export function InstallmentDialog({
     const payments: InstallmentPayment[] = []
     const currentDate = new Date(start)
 
-    if (recurr === 'never') {
+    if (recurr === "never") {
       payments.push({
         id: crypto.randomUUID(),
-        due_date: currentDate.toISOString().split('T')[0],
+        due_date: currentDate.toISOString().split("T")[0],
         amount: amount,
         is_paid: false,
         paid_date: null,
@@ -229,8 +228,8 @@ export function InstallmentDialog({
       const [gy, gm, gd] = jalaliToGregorian(startDatePersian.year, startDatePersian.month, startDatePersian.day)
       const startDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
 
-      if (recurrence === 'never' && Number(installmentCount) !== 1) {
-        setInstallmentCount('1')
+      if (recurrence === "never" && Number(installmentCount) !== 1) {
+        setInstallmentCount("1")
       }
 
       const installmentData: Installment = installment
@@ -294,9 +293,8 @@ export function InstallmentDialog({
     }
   }
 
-  async function handleDelete() {
+  async function handleDeleteConfirmed() {
     if (!installment) return
-    if (!confirm("آیا از حذف این قسط اطمینان دارید؟")) return
 
     setLoading(true)
 
@@ -308,6 +306,7 @@ export function InstallmentDialog({
         description: navigator.onLine ? "قسط حذف و همگام‌سازی شد" : "قسط محلی حذف شد",
       })
 
+      setShowDeleteConfirm(false)
       onSuccess()
       onOpenChange(false)
     } catch (error) {
@@ -329,207 +328,218 @@ export function InstallmentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined} className="max-w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl md:text-2xl text-right flex-1">
-              {installment ? "ویرایش قسط" : "افزودن قسط جدید"}
-            </DialogTitle>
-          </div>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-            <div>
-              <Label htmlFor="creditor" className="text-sm">
-                نام طلبکار *
-              </Label>
-              <Input
-                id="creditor"
-                value={creditorName}
-                onChange={(e) => setCreditorName(e.target.value)}
-                placeholder="مثال: بانک ملی"
-                required
-                className="text-right mt-2"
-              />
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="max-w-[95vw] md:max-w-3xl max-h-[90vh] overflow-y-auto p-4 md:p-6"
+        >
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl md:text-2xl text-right flex-1">
+                {installment ? "ویرایش قسط" : "افزودن قسط جدید"}
+              </DialogTitle>
             </div>
+          </DialogHeader>
 
-            <div>
-              <Label htmlFor="item" className="text-sm">
-                شرح خرید/وام
-              </Label>
-              <Input
-                id="item"
-                value={itemDescription}
-                onChange={(e) => setItemDescription(e.target.value)}
-                placeholder="مثال: وام خودرو"
-                className="text-right mt-2"
-              />
-            </div>
-          </div>
-
- 
-
-          <div className="space-y-4 p-3 md:p-4 rounded-lg bg-muted/30 border-2 border-dashed">
-            <h3 className="font-semibold text-base md:text-lg">برنامه پرداخت</h3>
-
-            <div>
-              <Label htmlFor="startDate" className="text-sm">
-                تاریخ شروع *
-              </Label>
-              <div className="mt-2">
-                <PersianDatePicker value={startDatePersian} onChange={setStartDatePersian} />
-              </div>
-            </div>
-
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <div>
-                <Label htmlFor="recurrence" className="text-sm">
-                  دوره تکرار *
-                </Label>
-                <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">روزانه</SelectItem>
-                    <SelectItem value="weekly">هفتگی</SelectItem>
-                    <SelectItem value="monthly">ماهانه</SelectItem>
-                    <SelectItem value="yearly">سالانه</SelectItem>
-                    <SelectItem value="never">هرگز</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {recurrence !== 'never' && (
-                <div>
-                  <Label htmlFor="count" className="text-sm">
-                    تعداد اقساط *
-                  </Label>
-                  <Input
-                    id="count"
-                    type="text"
-                    min="1"
-                    value={toPersianDigits(installmentCount)}
-                    onChange={(e) => setInstallmentCount(parseCurrencyInput(e.target.value).toString())}
-                    placeholder="۱۲"
-                    required
-                    className="text-right mt-2"
-                    dir="rtl"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="time" className="text-sm">
-                  ساعت پرداخت
+                <Label htmlFor="creditor" className="text-sm">
+                  نام طلبکار *
                 </Label>
                 <Input
-                  className="mt-2"
-                  id="time"
-                  type="time"
-                  value={paymentTime}
-                  onChange={(e) => setPaymentTime(e.target.value)}
+                  id="creditor"
+                  value={creditorName}
+                  onChange={(e) => setCreditorName(e.target.value)}
+                  placeholder="مثال: بانک ملی"
+                  required
+                  className="text-right mt-2"
                 />
               </div>
 
               <div>
-                <Label htmlFor="reminder" className="text-sm">
-                  یادآوری
+                <Label htmlFor="item" className="text-sm">
+                  شرح خرید/وام
                 </Label>
-                <Select value={reminderDays} onValueChange={setReminderDays}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">هرگز</SelectItem>
-                    <SelectItem value="1">1 روز قبل</SelectItem>
-                    <SelectItem value="2">2 روز قبل</SelectItem>
-                    <SelectItem value="3">3 روز قبل</SelectItem>
-                    <SelectItem value="5">5 روز قبل</SelectItem>
-                    <SelectItem value="7">یک هفته قبل</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="item"
+                  value={itemDescription}
+                  onChange={(e) => setItemDescription(e.target.value)}
+                  placeholder="مثال: وام خودرو"
+                  className="text-right mt-2"
+                />
               </div>
             </div>
-          </div>
-         {/* ========================================
-              📊 بخش مبلغ - فقط مبلغ کل
-          ======================================== */}
-          <div className="space-y-4 p-3 md:p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-200 dark:border-blue-800">
-            <div className="flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-base md:text-lg text-blue-900 dark:text-blue-100">
-                محاسبه خودکار مبلغ
-              </h3>
+
+            <div className="space-y-4 p-3 md:p-4 rounded-lg bg-muted/30 border-2 border-dashed">
+              <h3 className="font-semibold text-base md:text-lg">برنامه پرداخت</h3>
+
+              <div>
+                <Label htmlFor="startDate" className="text-sm">
+                  تاریخ شروع *
+                </Label>
+                <div className="mt-2">
+                  <PersianDatePicker value={startDatePersian} onChange={setStartDatePersian} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="recurrence" className="text-sm">
+                    دوره تکرار *
+                  </Label>
+                  <Select value={recurrence} onValueChange={(v) => setRecurrence(v as any)}>
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">روزانه</SelectItem>
+                      <SelectItem value="weekly">هفتگی</SelectItem>
+                      <SelectItem value="monthly">ماهانه</SelectItem>
+                      <SelectItem value="yearly">سالانه</SelectItem>
+                      <SelectItem value="never">هرگز</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {recurrence !== "never" && (
+                  <div>
+                    <Label htmlFor="count" className="text-sm">
+                      تعداد اقساط *
+                    </Label>
+                    <Input
+                      id="count"
+                      type="text"
+                      min="1"
+                      value={toPersianDigits(installmentCount)}
+                      onChange={(e) => setInstallmentCount(parseCurrencyInput(e.target.value).toString())}
+                      placeholder="۱۲"
+                      required
+                      className="text-right mt-2"
+                      dir="rtl"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="time" className="text-sm">
+                    ساعت پرداخت
+                  </Label>
+                  <Input
+                    className="mt-2"
+                    id="time"
+                    type="time"
+                    value={paymentTime}
+                    onChange={(e) => setPaymentTime(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="reminder" className="text-sm">
+                    یادآوری
+                  </Label>
+                  <Select value={reminderDays} onValueChange={setReminderDays}>
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">هرگز</SelectItem>
+                      <SelectItem value="1">1 روز قبل</SelectItem>
+                      <SelectItem value="2">2 روز قبل</SelectItem>
+                      <SelectItem value="3">3 روز قبل</SelectItem>
+                      <SelectItem value="5">5 روز قبل</SelectItem>
+                      <SelectItem value="7">یک هفته قبل</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 p-3 md:p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-blue-600" />
+                <h3 className="font-semibold text-base md:text-lg text-blue-900 dark:text-blue-100">
+                  محاسبه خودکار مبلغ
+                </h3>
+              </div>
+
+              <div>
+                <Label htmlFor="total" className="text-sm">
+                  مبلغ کل (تومان) *
+                </Label>
+                <Input
+                  id="total"
+                  type="text"
+                  value={totalAmountDisplay}
+                  onChange={(e) => handleTotalAmountChange(e.target.value)}
+                  placeholder="۵۰,۰۰۰,۰۰۰"
+                  required
+                  className="text-right mt-2"
+                  dir="rtl"
+                />
+              </div>
+
+              {Number(installmentAmount) > 0 && (
+                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+                  <p className="text-sm text-muted-foreground mb-1">مبلغ هر قسط:</p>
+                  <p className="text-lg md:text-xl font-bold text-green-700 dark:text-green-400" dir="rtl">
+                    {formatCurrencyPersian(Number(installmentAmount))} تومان
+                  </p>
+                  <p dir="rtl" className="text-xs text-muted-foreground mt-1">
+                    (محاسبه : {toPersianDigits(recurrence === "never" ? 1 : installmentCount)} ÷{" "}
+                    {formatCurrencyPersian(Number(totalAmount))})
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
-              <Label htmlFor="total" className="text-sm">
-                مبلغ کل (تومان) *
+              <Label htmlFor="notes" className="text-sm">
+                یادداشت
               </Label>
-              <Input
-                id="total"
-                type="text"
-                value={totalAmountDisplay}
-                onChange={(e) => handleTotalAmountChange(e.target.value)}
-                placeholder="۵۰,۰۰۰,۰۰۰"
-                required
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="یادداشت‌های اضافی..."
                 className="text-right mt-2"
-                dir="rtl"
+                rows={3}
               />
             </div>
 
-            {/* نمایش مبلغ محاسبه شده */}
-            {Number(installmentAmount) > 0 && (
-              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
-                <p className="text-sm text-muted-foreground mb-1">مبلغ هر قسط:</p>
-                <p className="text-lg md:text-xl font-bold text-green-700 dark:text-green-400" dir="rtl">
-                  {formatCurrencyPersian(Number(installmentAmount))} تومان
-                </p>
-                <p dir="rtl" className="text-xs text-muted-foreground mt-1">
-                  (محاسبه : {toPersianDigits(recurrence === 'never' ? 1 : installmentCount)} ÷ {formatCurrencyPersian(Number(totalAmount))})
-                </p>
-              </div>
-            )}
-          </div>
-          <div>
-            <Label htmlFor="notes" className="text-sm">
-              یادداشت
-            </Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="یادداشت‌های اضافی..."
-              className="text-right mt-2"
-              rows={3}
-            />
-          </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button type="submit" disabled={loading} className="rounded-full px-8 w-full sm:w-auto">
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button type="submit" disabled={loading} className="rounded-full px-8 w-full sm:w-auto">
                 <SaveIcon className="h-4 w-4" />
-              {loading ? "در حال ذخیره..." : installment ? "ذخیره تغییرات" : "ایجاد قسط"}
-            </Button>
-            {installment && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={loading}
-                className="gap-2 w-full sm:w-auto"
-              >
-                <Trash2 className="h-4 w-4" />
-                حذف
+                {loading ? "در حال ذخیره..." : installment ? "ذخیره تغییرات" : "ایجاد قسط"}
               </Button>
-            )}
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+              {installment && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={loading}
+                  className="gap-2 w-full sm:w-auto"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  حذف
+                </Button>
+              )}
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={handleDeleteConfirmed}
+        title="حذف قسط"
+        description={`آیا از حذف قسط "${installment?.creditor_name || ""}" اطمینان دارید؟ این عملیات قابل بازگشت نیست و تمام ${installment?.installment_count || 0} دوره پرداخت حذف خواهد شد.`}
+        loading={loading}
+      />
+    </>
   )
 }
