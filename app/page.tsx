@@ -101,7 +101,7 @@ export default function Home() {
               <Wallet className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">مدیریت اقساط</h1>
+              <h1 className="text-2xl font-bold">قسطا</h1>
               <p className="text-sm text-muted-foreground mt-1">{toPersianDigits(todayPersianString)}</p>
             </div>
           </div>
