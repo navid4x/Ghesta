@@ -13,8 +13,8 @@ const vazirmatn = Vazirmatn({
 })
 
 export const metadata: Metadata = {
-  title: "مدیریت اقساط",
-  description: "قسط یار، مدیریت اقساط و یادآوری آن ها",
+  title: "قسطا",
+  description: "قسطا، مدیریت اقساط و یادآوری آن ها",
   generator: "v0.app",
   manifest: "/manifest.json",
   icons: {
