@@ -83,7 +83,7 @@ export default function AuthPage() {
       if (user) {
         toast({
           title: result.isNewUser ? "✅ حساب شما ایجاد شد!" : "✅ خوش آمدید!",
-          description: result.isNewUser ? "خوش آمدید به مدیریت اقساط" : "با موفقیت وارد شدید",
+          description: result.isNewUser ? "خوش آمدید به قسطا" : "با موفقیت وارد شدید",
         })
 
         // درخواست مجوز نوتیفیکیشن
@@ -198,4 +198,5 @@ export default function AuthPage() {
       </Card>
     </div>
   )
+
 }
