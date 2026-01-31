@@ -105,8 +105,16 @@ async function syncNow(): Promise<void> {
 // ============================================
 // 🔧 پردازش یک عملیات
 // ============================================
+// ... کدهای قبلی بدون تغییر تا قسمت processOperation ...
+
+// ============================================
+// 🔧 پردازش یک عملیات
+// ============================================
 async function processOperation(supabase: any, operation: SyncOperation): Promise<void> {
   switch (operation.type) {
+    // ========================================
+    // 📝 CREATE & UPDATE
+    // ========================================
     case "create":
     case "update":
       const { error: instError } = await supabase.from("installments").upsert({
@@ -117,6 +125,7 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
         total_amount: operation.data.total_amount,
         installment_amount: operation.data.installment_amount,
         start_date: operation.data.start_date,
+        jalali_start_date: operation.data.jalali_start_date, // 🆕
         installment_count: operation.data.installment_count,
         recurrence: operation.data.recurrence,
         reminder_days: operation.data.reminder_days,
@@ -124,12 +133,12 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
         payment_time: operation.data.payment_time,
         created_at: operation.data.created_at,
         updated_at: new Date().toISOString(),
+        deleted_at: operation.data.deleted_at || null, // 🆕
       })
 
       if (instError) throw instError
 
       if (operation.data.payments?.length > 0) {
-        // حذف payments قدیمی که در لیست جدید نیستند
         const paymentIds = operation.data.payments.map((p: any) => p.id)
         await supabase
           .from("installment_payments")
@@ -137,14 +146,15 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
           .eq("installment_id", operation.data.id)
           .not("id", "in", `(${paymentIds.join(",")})`)
 
-        // Upsert payments جدید
         const paymentsToUpsert = operation.data.payments.map((p: any) => ({
           id: p.id,
           installment_id: operation.data.id,
           due_date: p.due_date,
+          jalali_due_date: p.jalali_due_date, // 🆕
           amount: p.amount,
           is_paid: p.is_paid,
           paid_date: p.paid_date || null,
+          deleted_at: p.deleted_at || null, // 🆕
           updated_at: new Date().toISOString(),
         }))
 
@@ -156,14 +166,78 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
       }
       break
 
-    case "delete":
-      await supabase.from("installment_payments").delete().eq("installment_id", operation.data.id)
+    // ========================================
+    // 🗑️ SOFT DELETE
+    // ========================================
+    case "soft_delete":
+      await supabase
+        .from("installment_payments")
+        .update({ 
+          deleted_at: operation.data.deleted_at,
+          updated_at: new Date().toISOString()
+        })
+        .eq("installment_id", operation.data.id)
 
-      const { error: delError } = await supabase.from("installments").delete().eq("id", operation.data.id)
+      const { error: softDelError } = await supabase
+        .from("installments")
+        .update({ 
+          deleted_at: operation.data.deleted_at,
+          updated_at: operation.data.updated_at
+        })
+        .eq("id", operation.data.id)
 
-      if (delError) throw delError
+      if (softDelError) throw softDelError
+      
+      console.log("[Sync] ✅ Soft deleted on server:", operation.data.id)
       break
 
+    // ========================================
+    // 🔄 RESTORE
+    // ========================================
+    case "restore":
+      await supabase
+        .from("installment_payments")
+        .update({ 
+          deleted_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("installment_id", operation.data.id)
+
+      const { error: restoreError } = await supabase
+        .from("installments")
+        .update({ 
+          deleted_at: null,
+          updated_at: operation.data.updated_at
+        })
+        .eq("id", operation.data.id)
+
+      if (restoreError) throw restoreError
+      
+      console.log("[Sync] ✅ Restored on server:", operation.data.id)
+      break
+
+    // ========================================
+    // 💀 HARD DELETE (کامل)
+    // ========================================
+    case "hard_delete":
+      await supabase
+        .from("installment_payments")
+        .delete()
+        .eq("installment_id", operation.data.id)
+
+      const { error: delError } = await supabase
+        .from("installments")
+        .delete()
+        .eq("id", operation.data.id)
+
+      if (delError) throw delError
+      
+      console.log("[Sync] ✅ Hard deleted on server:", operation.data.id)
+      break
+
+    // ========================================
+    // ✅ TOGGLE PAYMENT
+    // ========================================
     case "toggle_payment":
       const { error: toggleError } = await supabase
         .from("installment_payments")
@@ -182,6 +256,15 @@ async function processOperation(supabase: any, operation: SyncOperation): Promis
         .eq("id", operation.data.installmentId)
       break
   }
+}
+
+// ... بقیه کد بدون تغییر ...
+
+// 🆕 Export کردن getQueue برای استفاده در data-sync
+export function getQueue(): SyncOperation[] {
+  if (typeof window === "undefined") return []
+  const stored = localStorage.getItem(SYNC_QUEUE_KEY)
+  return stored ? JSON.parse(stored) : []
 }
 
 // ============================================
@@ -206,12 +289,6 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
   if (navigator.onLine && !isSyncing) {
     syncNow()
   }
-}
-
-function getQueue(): SyncOperation[] {
-  if (typeof window === "undefined") return []
-  const stored = localStorage.getItem(SYNC_QUEUE_KEY)
-  return stored ? JSON.parse(stored) : []
 }
 
 function saveQueue(queue: SyncOperation[]): void {
