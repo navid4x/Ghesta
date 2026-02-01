@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List, Undo2 } from "lucide-react"
+import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List, Undo2, Trash2 } from "lucide-react"
 import type { Installment } from "@/lib/types"
 import { InstallmentDialog } from "./installment-dialog"
 import { CalendarGrid } from "./calendar-grid"
+import { TrashDialog } from "./trash-dialog"
 import { gregorianToJalali, persianMonths, toPersianDigits, formatCurrencyPersian } from "@/lib/persian-calendar"
 import { loadInstallments, togglePayment, undoLastPayment, getLastPaidPayment } from "@/lib/data-sync"
 import { startBackgroundSync, stopBackgroundSync } from "@/lib/background-sync"
@@ -31,6 +32,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [undoDialogOpen, setUndoDialogOpen] = useState(false)
   const [undoInstallment, setUndoInstallment] = useState<Installment | null>(null)
+  const [trashDialogOpen, setTrashDialogOpen] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -104,7 +106,14 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
 
-  function getPersianDate(gregorianDate: string): string {
+  function getPersianDate(gregorianDate: string, jalaliDate?: string): string {
+    // 🆕 اگر jalali_due_date داریم، مستقیم استفاده کن
+    if (jalaliDate) {
+      const [year, month, day] = jalaliDate.split("/").map(Number)
+      return `${toPersianDigits(day)} ${persianMonths[month - 1]} ${toPersianDigits(year)}`
+    }
+    
+    // fallback: تبدیل از gregorian
     const [year, month, day] = gregorianDate.split("-").map(Number)
     const [jy, jm, jd] = gregorianToJalali(year, month, day)
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
@@ -245,7 +254,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     if (!lastPaid) return null
 
     return {
-      date: getPersianDate(lastPaid.due_date),
+      date: getPersianDate(lastPaid.due_date, lastPaid.jalali_due_date),
       amount: formatCurrency(lastPaid.amount),
     }
   }
@@ -260,16 +269,29 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <div className="fixed bottom-1 left-4 z-50">
+      {/* دکمه‌های شناور */}
+      <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2">
+        {/* دکمه افزودن */}
         <Button
           onClick={() => handleAddInstallment()}
           size="icon"
-          className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+          className="h-12 w-12 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="h-6 w-6" />
+        </Button>
+
+        {/* 🆕 دکمه سطل زباله */}
+        <Button
+          onClick={() => setTrashDialogOpen(true)}
+          size="icon"
+          variant="outline"
+          className="h-12 w-12 rounded-full shadow-lg"
+        >
+          <Trash2 className="h-5 w-5" />
         </Button>
       </div>
 
+      {/* کارت‌های آمار */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 bg-gradient-to-br from-rose-500/10 to-orange-500/5 border-rose-500/20">
           <div className="flex items-center justify-between">
@@ -330,6 +352,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         </Card>
       </div>
 
+      {/* نمایش اقساط انتخاب شده */}
       {selectedCardData && selectedCardData.length > 0 && (
         <Card className="p-4">
           <h3 className="font-bold text-lg mb-4">
@@ -345,7 +368,9 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{item.creditor_name}</p>
-                  <p className="text-xs text-muted-foreground">{getPersianDate(item.payment.due_date)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {getPersianDate(item.payment.due_date, item.payment.jalali_due_date)}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="font-bold text-sm">{formatCurrency(item.payment.amount)} تومان</p>
@@ -359,6 +384,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         </Card>
       )}
 
+      {/* تب‌ها */}
       <Tabs defaultValue="calendar" className="w-full" onValueChange={setActiveView}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="list" className="gap-2">
@@ -456,7 +482,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                                     ({toPersianDigits(getDaysUntilDue(nextPayment.due_date))} روز مانده)
                                   </span>
                                   <span dir="rtl" className="break-words">
-                                    {getPersianDate(nextPayment.due_date)}
+                                    {getPersianDate(nextPayment.due_date, nextPayment.jalali_due_date)}
                                   </span>
                                   <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
@@ -492,6 +518,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         </TabsContent>
       </Tabs>
 
+      {/* دیالوگ‌ها */}
       <InstallmentDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
@@ -511,6 +538,12 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         onConfirm={handleConfirmUndo}
         paymentDate={undoInstallment ? getUndoPaymentInfo(undoInstallment)?.date : undefined}
         amount={undoInstallment ? getUndoPaymentInfo(undoInstallment)?.amount : undefined}
+      />
+
+      <TrashDialog 
+        open={trashDialogOpen} 
+        onOpenChange={setTrashDialogOpen}
+        onRestore={loadData}
       />
     </div>
   )
