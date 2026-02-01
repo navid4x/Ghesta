@@ -162,7 +162,7 @@ export async function saveInstallment(installment: Installment): Promise<void> {
 }
 
 // ============================================
-// 🗑️ SOFT DELETE INSTALLMENT - فوری!
+// 🗑️ SOFT DELETE INSTALLMENT - آپدیت شده
 // ============================================
 export async function deleteInstallment(installmentId: string): Promise<void> {
   const user = await getCurrentUser()
@@ -170,18 +170,23 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
 
   const userId = user.id
 
-  const installments = getLocalInstallments(userId)
-  const installment = installments.find((i) => i.id === installmentId)
+  // 🔧 گرفتن همه installments (شامل deleted)
+  const stored = localStorage.getItem(`installments-${userId}`)
+  const installments = stored ? JSON.parse(stored) : []
+  
+  const installment = installments.find((i: Installment) => i.id === installmentId)
   
   if (installment) {
     installment.deleted_at = new Date().toISOString()
     installment.updated_at = new Date().toISOString()
     
-    installment.payments.forEach(payment => {
+    // علامت‌گذاری payments
+    installment.payments.forEach((payment: any) => {
       payment.deleted_at = installment.deleted_at
     })
     
-    saveLocalInstallments(userId, installments)
+    // 🔧 ذخیره با deleted items (موقتی تا sync بشه)
+    localStorage.setItem(`installments-${userId}`, JSON.stringify(installments))
     invalidateCache()
 
     console.log("[Sync] ⚡ Soft deleted locally (instant!)")
@@ -195,11 +200,23 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
         updated_at: installment.updated_at
       },
     })
+    
+    // 🔧 بعد از اضافه به صف، فوراً پاک کن از localStorage
+    // (چون دیگه نیازی نیست توی لیست اصلی باشه)
+    setTimeout(() => {
+      const updated = installments.filter((i: Installment) => i.id !== installmentId)
+      localStorage.setItem(`installments-${userId}`, JSON.stringify(updated))
+      
+      // Trigger data refresh event
+      window.dispatchEvent(new CustomEvent("data-refreshed", { 
+        detail: updated.filter((i: Installment) => !i.deleted_at) 
+      }))
+    }, 100)
   }
 }
 
 // ============================================
-// 🔄 RESTORE INSTALLMENT (بازیابی)
+// 🔄 RESTORE INSTALLMENT - آپدیت شده
 // ============================================
 export async function restoreInstallment(installmentId: string): Promise<void> {
   const user = await getCurrentUser()
@@ -207,16 +224,23 @@ export async function restoreInstallment(installmentId: string): Promise<void> {
 
   const userId = user.id
 
-  const installments = getLocalInstallments(userId)
-  const installment = installments.find((i) => i.id === installmentId)
+  // 🔧 اول چک کن در deleted items باشه
+  const deletedItems = await getDeletedInstallments()
+  const installment = deletedItems.find((i) => i.id === installmentId)
   
   if (installment && installment.deleted_at) {
+    // پاک کردن deleted_at
     delete installment.deleted_at
     installment.updated_at = new Date().toISOString()
     
+    // بازیابی payments
     installment.payments.forEach(payment => {
       delete payment.deleted_at
     })
+    
+    // 🔧 اضافه کردن به لیست اصلی
+    const installments = getLocalInstallments(userId)
+    installments.push(installment)
     
     saveLocalInstallments(userId, installments)
     invalidateCache()
@@ -231,11 +255,14 @@ export async function restoreInstallment(installmentId: string): Promise<void> {
         updated_at: installment.updated_at
       },
     })
+    
+    // Trigger refresh
+    window.dispatchEvent(new CustomEvent("data-refreshed", { detail: installments }))
   }
 }
 
 // ============================================
-// 💀 HARD DELETE (پاک کردن کامل - فقط برای admin)
+// 💀 HARD DELETE - آپدیت شده
 // ============================================
 export async function hardDeleteInstallment(installmentId: string): Promise<void> {
   const user = await getCurrentUser()
@@ -243,9 +270,12 @@ export async function hardDeleteInstallment(installmentId: string): Promise<void
 
   const userId = user.id
 
-  const installments = getLocalInstallments(userId)
-  const filtered = installments.filter((i) => i.id !== installmentId)
-  saveLocalInstallments(userId, filtered)
+  // 🔧 حذف از همه جا (حتی deleted items)
+  const stored = localStorage.getItem(`installments-${userId}`)
+  const installments = stored ? JSON.parse(stored) : []
+  const filtered = installments.filter((i: Installment) => i.id !== installmentId)
+  
+  localStorage.setItem(`installments-${userId}`, JSON.stringify(filtered))
   invalidateCache()
 
   console.log("[Sync] ⚡ Hard deleted locally (instant!)")
@@ -256,7 +286,6 @@ export async function hardDeleteInstallment(installmentId: string): Promise<void
     data: { id: installmentId },
   })
 }
-
 // ============================================
 // ✅ TOGGLE PAYMENT - فوری!
 // ============================================
@@ -405,14 +434,22 @@ function getLocalInstallments(userId: string): Installment[] {
   const stored = localStorage.getItem(`installments-${userId}`)
   const installments = stored ? JSON.parse(stored) : []
   
-  // فیلتر deleted items از localStorage
+  // 🔧 فیلتر deleted items از localStorage
   return installments.filter((i: Installment) => !i.deleted_at)
 }
 
 function saveLocalInstallments(userId: string, installments: Installment[]): void {
-  localStorage.setItem(`installments-${userId}`, JSON.stringify(installments))
+  // 🔧 فیلتر deleted items قبل از ذخیره (بجز موارد جدید که در صف هستن)
+  const toSave = installments.filter(i => {
+    // اگر deleted نیست، ذخیره کن
+    if (!i.deleted_at) return true
+    
+    // اگر deleted هست، فقط در صورتی ذخیره کن که در صف sync باشه
+    return isInSyncQueue(i.id)
+  })
+  
+  localStorage.setItem(`installments-${userId}`, JSON.stringify(toSave))
 }
-
 // ============================================
 // 🔀 MERGE LOGIC با Soft Delete
 // ============================================
@@ -423,6 +460,7 @@ function mergeInstallments(local: Installment[], server: Installment[], userId: 
 
   // 1️⃣ Server data = Source of Truth
   server.forEach((item) => {
+    // 🔧 فقط active items رو اضافه کن
     if (!item.deleted_at) {
       merged.set(item.id, item)
     }
@@ -432,7 +470,9 @@ function mergeInstallments(local: Installment[], server: Installment[], userId: 
   local.forEach((item) => {
     const serverItem = merged.get(item.id)
     
+    // 🔧 اگر deleted هست، skip کن (نباید در لیست اصلی باشه)
     if (item.deleted_at) {
+      console.log("[Sync] Skipping deleted item:", item.id)
       return
     }
 
@@ -456,11 +496,14 @@ function mergeInstallments(local: Installment[], server: Installment[], userId: 
   })
 
   const result = Array.from(merged.values())
-  console.log("[Sync] Merge complete:", { resultCount: result.length })
   
-  return result
+  // 🔧 فیلتر نهایی: اطمینان از اینکه هیچ deleted item در نتیجه نباشه
+  const filtered = result.filter(item => !item.deleted_at)
+  
+  console.log("[Sync] Merge complete:", { resultCount: filtered.length })
+  
+  return filtered
 }
-
 // ============================================
 // 📊 GET DELETED ITEMS (برای نمایش در UI)
 // ============================================
@@ -471,11 +514,14 @@ export async function getDeletedInstallments(): Promise<Installment[]> {
   const userId = user.id
 
   if (!navigator.onLine) {
+    // 🔧 در حالت آفلاین، از localStorage بخون (بدون فیلتر)
     const stored = localStorage.getItem(`installments-${userId}`)
     const installments = stored ? JSON.parse(stored) : []
+    // فقط deleted items رو برگردون
     return installments.filter((i: Installment) => i.deleted_at)
   }
 
+  // در حالت آنلاین، از server بگیر
   const supabase = createClient()
   const { data, error } = await supabase
     .from("installments")
@@ -484,7 +530,7 @@ export async function getDeletedInstallments(): Promise<Installment[]> {
       installment_payments(*)
     `)
     .eq("user_id", userId)
-    .not("deleted_at", "is", null)
+    .not("deleted_at", "is", null) // 🔧 فقط deleted items
     .order("deleted_at", { ascending: false })
     .limit(50)
 
@@ -509,7 +555,6 @@ export async function getDeletedInstallments(): Promise<Installment[]> {
     }
   })
 }
-
 export function getPendingOperationsCount(): number {
   const { getQueueSize } = require("@/lib/background-sync")
   return getQueueSize()
