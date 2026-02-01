@@ -5,7 +5,7 @@ import { addToQueue, getQueue } from "@/lib/background-sync"
 import { gregorianStringToJalaliString } from "@/lib/persian-calendar"
 
 const CACHE_KEY = "installments_cache"
-const CACHE_DURATION = 5000 // 5 ثانیه
+const CACHE_DURATION = 30000 // 30 ثانیه
 
 function invalidateCache(): void {
   if (typeof window === "undefined") return
