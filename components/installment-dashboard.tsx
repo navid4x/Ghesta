@@ -437,7 +437,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         </TabsList>
 
         <TabsContent value="calendar" className="mt-4">
-          <CalendarGrid onDateSelect={(date) => handleAddInstallment(date)} installmentDates={installmentDates} />
+          <CalendarGrid onDateSelect={(date) => handleAddInstallment(date)} installmentDates={installmentDates} allInstallments={installments}  />
         </TabsContent>
 
         <TabsContent value="list" className="mt-4">
