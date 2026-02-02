@@ -54,14 +54,14 @@ export function DayInstallmentsPopup({
             >
               <Card className="p-6 shadow-2xl border-2 max-h-[80vh] overflow-auto" dir="rtl">
                 {/* Header */}
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-4" style="flex-direction:row !important">
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                       <Calendar className="h-6 w-6 text-primary" />
                     </div>
                     <div className="text-right">
                       <h3 className="text-lg font-bold">اقساط روز</h3>
-                      <p className="text-sm text-muted-foreground">{persianDate}</p>
+                      <p className="text-sm text-muted-foreground">{toPersianDigits(persianDate)}</p>
                     </div>
                   </div>
                   <Button
@@ -84,7 +84,7 @@ export function DayInstallmentsPopup({
                       transition={{ delay: index * 0.1 }}
                     >
                       <Card className="p-4 bg-gradient-to-br from-muted/30 to-muted/10 border-2 hover:border-primary/50 transition-all cursor-pointer group">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3" style="flex-direction:row-reverse !important">
                           <div className="flex-1 min-w-0 text-right">
                             {/* عنوان */}
                             <div className="flex items-center gap-2 mb-2 justify-end">
