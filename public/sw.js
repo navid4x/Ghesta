@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v5"
+const CACHE_VERSION = "v6"
 const STATIC_CACHE = `ghestyar-static-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `ghestyar-dynamic-${CACHE_VERSION}`
 
