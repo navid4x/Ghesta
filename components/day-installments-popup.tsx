@@ -84,10 +84,10 @@ export function DayInstallmentsPopup({
                       transition={{ delay: index * 0.1 }}
                     >
                       <Card className="p-4 bg-gradient-to-br from-muted/30 to-muted/10 border-2 hover:border-primary/50 transition-all cursor-pointer group">
-                        <div className="flex flex-row-reverse items-start justify-between gap-3">
+                        <div className="flex flex-row-reverse items-start justify-between gap-3" >
                           <div className="flex-1 min-w-0 text-right">
                             {/* عنوان */}
-                            <div className="flex items-center gap-2 mb-2 justify-end">
+                            <div className="flex flex-row-reverse items-center gap-2 mb-2 justify-end">
                               <h4 className="font-bold text-base break-words">
                                 {item.installment.creditor_name}
                               </h4>
@@ -95,7 +95,7 @@ export function DayInstallmentsPopup({
                             </div>
 
                             {/* مبلغ */}
-                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                            <div className="flex flex-row-reverse items-center gap-2 flex-wrap justify-end" >
                               {/* وضعیت پرداخت */}
                               {item.payment.is_paid ? (
                                 <Badge className="bg-green-500 text-white">
@@ -127,7 +127,7 @@ export function DayInstallmentsPopup({
 
                 {/* خلاصه */}
                 <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-row-reverse items-center justify-between">
                     <span className="text-lg font-bold text-primary">
                       {formatCurrencyPersian(
                         installments.reduce((sum, item) => sum + item.payment.amount, 0)
@@ -136,7 +136,7 @@ export function DayInstallmentsPopup({
                     </span>
                     <span className="text-sm font-medium">جمع اقساط:</span>
                   </div>
-                  <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                  <div className="flex flex-row-reverse items-center justify-between mt-1 text-xs text-muted-foreground">
                     <span>{toPersianDigits(installments.length)} قسط</span>
                     <span>تعداد:</span>
                   </div>
