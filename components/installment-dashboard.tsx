@@ -427,6 +427,10 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       {/* تب‌ها */}
       <Tabs defaultValue="list" className="w-full" onValueChange={setActiveView}>
         <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="calculator" className="gap-2">
+            محاسبه‌گر
+            <Calculator className="h-4 w-4" />
+          </TabsTrigger>
           <TabsTrigger value="list" className="gap-2">
             لیست اقساط
             <List className="h-4 w-4" />
@@ -434,10 +438,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           <TabsTrigger value="calendar" className="gap-2">
             تقویم
             <CalendarDays className="h-4 w-4" />
-          </TabsTrigger>
-          <TabsTrigger value="calculator" className="gap-2">
-            محاسبه‌گر
-            <Calculator className="h-4 w-4" />
           </TabsTrigger>
         </TabsList>
 

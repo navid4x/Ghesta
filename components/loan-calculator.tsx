@@ -192,7 +192,7 @@ export function LoanCalculator() {
       {/* نتایج */}
       {hasResults && (
         <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20" dir="rtl">
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-end">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-start">
             نتایج محاسبات
             <TrendingUp className="h-5 w-5 text-primary" />
           </h3>
@@ -200,7 +200,7 @@ export function LoanCalculator() {
           <div className="grid gap-4 md:grid-cols-2">
             {/* کل سود */}
             <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-row-reverse items-center justify-between">
                 <DollarSign className="h-8 w-8 text-red-500 shrink-0" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">کل سود پرداختی</span>
@@ -213,7 +213,7 @@ export function LoanCalculator() {
 
             {/* سود سالانه */}
             <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-row-reverse items-center justify-between">
                 <Calendar className="h-8 w-8 text-blue-500 shrink-0" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">نرخ سود سالانه</span>
@@ -229,7 +229,7 @@ export function LoanCalculator() {
 
             {/* سود ماهیانه */}
             <div className="p-4 rounded-lg bg-card border-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-row-reverse items-center justify-between">
                 <Percent className="h-8 w-8 text-green-500 shrink-0" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">نرخ سود ماهیانه</span>
@@ -242,15 +242,16 @@ export function LoanCalculator() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* پرداخت ماهیانه */}
-          <div className="mt-4 p-6 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border-2 border-primary/30">
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground mb-2">پرداخت ماهیانه</p>
-              <p className="text-5xl font-bold text-primary">
-                {formatCurrencyPersian(Math.round(results.monthlyPaymentCalc))} تومان
-              </p>
+            <div className="p-4 rounded-lg bg-card border-2">
+              <div className="flex flex-row-reverse items-center justify-between">
+                <div className="text-right flex-1">
+                  <span className="text-sm text-muted-foreground block mb-2">پرداخت ماهیانه</span>
+                  <p className="text-2xl font-bold text-primary">
+                    {formatCurrencyPersian(Math.round(results.monthlyPaymentCalc))} تومان
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </Card>
