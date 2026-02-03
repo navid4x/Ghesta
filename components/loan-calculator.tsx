@@ -118,7 +118,7 @@ export function LoanCalculator() {
               value={principalDisplay}
               onChange={(e) => handlePrincipalChange(e.target.value)}
               placeholder="مثال: ۱۰۰,۰۰۰,۰۰۰"
-              className="mt-2 text-right text-lg font-semibold"
+              className="mt-2 text-right text-l font-semibold"
               dir="rtl"
             />
           </div>
@@ -134,7 +134,7 @@ export function LoanCalculator() {
               value={monthCount ? toPersianDigits(monthCount) : ""}
               onChange={(e) => setMonthCount(parseCurrencyInput(e.target.value).toString())}
               placeholder="مثال: ۱۲"
-              className="mt-2 text-right text-lg font-semibold"
+              className="mt-2 text-right text-l font-semibold"
               dir="rtl"
             />
             {monthCount && Number(monthCount) > 0 && (
@@ -159,7 +159,7 @@ export function LoanCalculator() {
                 value={monthlyPaymentDisplay}
                 onChange={(e) => handleMonthlyPaymentChange(e.target.value)}
                 placeholder="مثال: ۱۰,۸۳۳,۳۳۳"
-                className="text-right text-lg font-semibold"
+                className="text-right text-l font-semibold"
                 dir="rtl"
               />
             </div>
@@ -181,7 +181,7 @@ export function LoanCalculator() {
                 value={totalPaybackDisplay}
                 onChange={(e) => handleTotalPaybackChange(e.target.value)}
                 placeholder="مثال: ۱۳۰,۰۰۰,۰۰۰"
-                className="text-right text-lg font-semibold"
+                className="text-right text-l font-semibold"
                 dir="rtl"
               />
             </div>
