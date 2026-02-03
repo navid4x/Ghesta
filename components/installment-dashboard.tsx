@@ -425,7 +425,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       )}
 
       {/* تب‌ها */}
-      <Tabs defaultValue="list" className="w-full" onValueChange={setActiveView}>
+      <Tabs defaultValue="calendar" className="w-full" onValueChange={setActiveView}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="calculator" className="gap-2">
             محاسبه‌گر

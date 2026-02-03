@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Calculator, CircleDollarSign , Percent } from "lucide-react"
+import { Calculator, CircleDollarSign ,Banknote , Percent } from "lucide-react"
 import { formatCurrencyPersian, parseCurrencyInput, toPersianDigits } from "@/lib/persian-calendar"
 
 export function LoanCalculator() {
@@ -245,6 +245,7 @@ export function LoanCalculator() {
 
             <div className="p-4 rounded-lg bg-card border-2">
               <div className="flex flex-row-reverse items-center justify-between">
+                <Banknote className="h-5 w-5 text-primary" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">پرداخت ماهیانه</span>
                   <p className="text-2xl font-bold text-primary">
