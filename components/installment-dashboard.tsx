@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List, Undo2, Trash2 } from "lucide-react"
+import { Plus, Banknote, CircleDollarSign, AlertCircle, CalendarDays, List, Undo2, Trash2, Calculator } from "lucide-react"
 import type { Installment } from "@/lib/types"
 import { InstallmentDialog } from "./installment-dialog"
 import { CalendarGrid } from "./calendar-grid"
 import { TrashDialog } from "./trash-dialog"
+import { LoanCalculator } from "./loan-calculator"
 import { gregorianToJalali, persianMonths, toPersianDigits, formatCurrencyPersian } from "@/lib/persian-calendar"
 import { loadInstallments, togglePayment, undoLastPayment, getLastPaidPayment } from "@/lib/data-sync"
 import { startBackgroundSync, stopBackgroundSync } from "@/lib/background-sync"
@@ -424,8 +425,8 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       )}
 
       {/* تب‌ها */}
-      <Tabs defaultValue="calendar" className="w-full" onValueChange={setActiveView}>
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue="list" className="w-full" onValueChange={setActiveView}>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="list" className="gap-2">
             لیست اقساط
             <List className="h-4 w-4" />
@@ -434,10 +435,22 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             تقویم
             <CalendarDays className="h-4 w-4" />
           </TabsTrigger>
+          <TabsTrigger value="calculator" className="gap-2">
+            محاسبه‌گر
+            <Calculator className="h-4 w-4" />
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="calendar" className="mt-4">
-          <CalendarGrid onDateSelect={(date) => handleAddInstallment(date)} installmentDates={installmentDates} allInstallments={installments}  />
+          <CalendarGrid 
+            onDateSelect={(date) => handleAddInstallment(date)} 
+            installmentDates={installmentDates}
+            allInstallments={installments}
+          />
+        </TabsContent>
+
+        <TabsContent value="calculator" className="mt-4">
+          <LoanCalculator />
         </TabsContent>
 
         <TabsContent value="list" className="mt-4">
