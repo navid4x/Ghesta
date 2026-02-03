@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Calculator, TrendingUp, Calendar, DollarSign, Percent } from "lucide-react"
+import { Calculator, CircleDollarSign , Percent } from "lucide-react"
 import { formatCurrencyPersian, parseCurrencyInput, toPersianDigits } from "@/lib/persian-calendar"
 
 export function LoanCalculator() {
@@ -101,9 +101,9 @@ export function LoanCalculator() {
       
       {/* ورودی‌ها */}
       <Card className="p-6" dir="rtl">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-end">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-start">
           اطلاعات وام
-          <DollarSign className="h-5 w-5 text-primary" />
+          <CircleDollarSign className="h-5 w-5 text-primary" />
         </h3>
 
         <div className="space-y-4">
@@ -194,14 +194,14 @@ export function LoanCalculator() {
         <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20" dir="rtl">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2 justify-start">
             نتایج محاسبات
-            <TrendingUp className="h-5 w-5 text-primary" />
+            <Calculator className="h-5 w-5 text-primary" />
           </h3>
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* کل سود */}
             <div className="p-4 rounded-lg bg-card border-2">
               <div className="flex flex-row-reverse items-center justify-between">
-                <DollarSign className="h-8 w-8 text-red-500 shrink-0" />
+                <CircleDollarSign className="h-8 w-8 text-red-500 shrink-0" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">کل سود پرداختی</span>
                   <p className="text-2xl font-bold text-red-600">
@@ -214,7 +214,7 @@ export function LoanCalculator() {
             {/* سود سالانه */}
             <div className="p-4 rounded-lg bg-card border-2">
               <div className="flex flex-row-reverse items-center justify-between">
-                <Calendar className="h-8 w-8 text-blue-500 shrink-0" />
+                <Percent className="h-8 w-8 text-blue-500 shrink-0" />
                 <div className="text-right flex-1">
                   <span className="text-sm text-muted-foreground block mb-2">نرخ سود سالانه</span>
                   <p className="text-2xl font-bold text-blue-600">
