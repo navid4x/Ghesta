@@ -3,13 +3,12 @@
 import { InstallmentDashboard } from "@/components/installment-dashboard"
 import { NotificationSettings } from "@/components/notification-settings"
 import { Wallet, LogOut, Wifi, WifiOff } from "lucide-react"
-import { getTodayPersian, persianMonths } from "@/lib/persian-calendar"
+import { getTodayPersian, persianMonths, toPersianDigits } from "@/lib/persian-calendar"
 import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser } from "@/lib/simple-auth"
 import { useSupabaseConnection } from "@/hooks/useSupabaseConnection"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getPendingOperationsCount } from "@/lib/data-sync"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
 
@@ -145,8 +144,4 @@ export default function Home() {
   )
 }
 
-function toPersianDigits(str: string | number): string {
-  if (str === null || str === undefined) return ""
-  const persianDigits = "۰۱۲۳۴۵۶۷۸۹"
-  return String(str).replace(/[0-9]/g, (w) => persianDigits[+w])
-}
+

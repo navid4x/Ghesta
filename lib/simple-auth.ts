@@ -184,50 +184,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return getStoredUser()
 }
 
-// ============================================
-// 🔄 SYNC
-// ============================================
-export async function syncPendingAuth(): Promise<boolean> {
-  if (!getConnectionStatus()) {
-    console.log("[Sync] ⏸️ آفلاین")
-    return false
-  }
 
-  const pending = localStorage.getItem("pending_auth")
-  if (!pending) return true
-
-  try {
-    const { email, password } = JSON.parse(pending)
-
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-      },
-    })
-
-    if (!error && data.user) {
-      const onlineUser: AuthUser = {
-        id: data.user.id,
-        email: data.user.email!,
-        created_at: data.user.created_at,
-      }
-
-      saveUserToLocal(onlineUser)
-      await syncOfflineData(data.user.id)
-      clearPendingSync()
-
-      console.log("[Sync] ✅ همگام‌سازی موفق!")
-      return true
-    }
-  } catch (error) {
-    console.error("[Sync] ❌ خطا در همگام‌سازی:", error)
-  }
-
-  return false
-}
 
 // ============================================
 // 🔄 SYNC OFFLINE DATA
@@ -336,26 +293,4 @@ function clearPendingSync(): void {
   localStorage.removeItem("pending_auth")
 }
 
-// ============================================
-// 🌐 ONLINE/OFFLINE LISTENER
-// ============================================
-export function setupOnlineListener(callback: (isOnline: boolean) => void): () => void {
-  const onOnline = async () => {
-    console.log("[Network] 🌐 آنلاین شد")
-    callback(true)
-    await syncPendingAuth()
-  }
 
-  const onOffline = () => {
-    console.log("[Network] 📱 آفلاین شد")
-    callback(false)
-  }
-
-  window.addEventListener("online", onOnline)
-  window.addEventListener("offline", onOffline)
-
-  return () => {
-    window.removeEventListener("online", onOnline)
-    window.removeEventListener("offline", onOffline)
-  }
-}

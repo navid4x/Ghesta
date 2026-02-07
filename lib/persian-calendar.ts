@@ -14,8 +14,6 @@ export const persianMonths = [
   "اسفند",
 ]
 
-export const persianWeekDays = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه"]
-
 export const persianWeekDaysShort = ["ش", "ی", "د", "س", "چ", "پ", "ج"]
 
 // Iranian national holidays (1403)
@@ -132,28 +130,7 @@ export function gregorianStringToJalaliString(gregorianDateStr: string): string 
   return formatPersianDate(jy, jm, jd)
 }
 
-/**
- * مقایسه دو تاریخ شمسی
- * @returns negative if date1 < date2, positive if date1 > date2, 0 if equal
- */
-export function compareJalaliDates(date1: string, date2: string): number {
-  const g1 = jalaliStringToGregorianString(date1)
-  const g2 = jalaliStringToGregorianString(date2)
-  
-  const t1 = new Date(g1).getTime()
-  const t2 = new Date(g2).getTime()
-  
-  return t1 - t2
-}
 
-/**
- * دریافت تاریخ امروز به فرمت string
- * مثال: "1403/11/12"
- */
-export function getTodayJalaliString(): string {
-  const [year, month, day] = getTodayPersian()
-  return formatPersianDate(year, month, day)
-}
 // Convert Gregorian to Persian (Jalali) - الگوریتم دقیق از jalaali-js (کتابخانه استاندارد)
 export function gregorianToJalali(gy: number, gm: number, gd: number): [number, number, number] {
   let jy: number
@@ -273,27 +250,7 @@ export function formatPersianDate(year: number, month: number, day: number): str
   return `${year}/${month.toString().padStart(2, "0")}/${day.toString().padStart(2, "0")}`
 }
 
-export function parsePersianDate(dateString: string): [number, number, number] {
-  const parts = dateString.split("/")
-  return [Number.parseInt(parts[0]), Number.parseInt(parts[1]), Number.parseInt(parts[2])]
-}
 
-export function getCurrentPersianMonthRemainingDays(): {
-  startDay: number
-  endDay: number
-  month: number
-  year: number
-} {
-  const today = getTodayPersian()
-  const [jy, jm, jd] = today
-  const monthDays = getPersianMonthDays(jy, jm)
-  return {
-    year: jy,
-    month: jm,
-    startDay: jd,
-    endDay: monthDays,
-  }
-}
 
 export function toPersianDigits(str: string | number): string {
   if (str === null || str === undefined) return ""

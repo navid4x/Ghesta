@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { signInOrSignUp, getCurrentUser } from "@/lib/auth-handler"
+import { useSupabaseConnection } from "@/hooks/useSupabaseConnection"
 import { WifiOff, Wifi, Wallet } from "lucide-react"
 import { subscribeToPushNotifications } from '@/lib/push-notifications'
 
@@ -15,7 +16,7 @@ export default function AuthPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
+  const isOnline = useSupabaseConnection()
   const router = useRouter()
   const { toast } = useToast()
 
@@ -27,24 +28,13 @@ export default function AuthPage() {
       }
     }
     checkUser()
-
-    const updateOnlineStatus = () => setIsOnline(navigator.onLine)
-    updateOnlineStatus()
-    
-    window.addEventListener('online', updateOnlineStatus)
-    window.addEventListener('offline', updateOnlineStatus)
-    
-    return () => {
-      window.removeEventListener('online', updateOnlineStatus)
-      window.removeEventListener('offline', updateOnlineStatus)
-    }
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
     // بررسی اتصال اینترنت
-    if (!navigator.onLine) {
+    if (!isOnline) {
       toast({
         title: "⚠️ اتصال اینترنت لازم است",
         description: "برای ورود یا ثبت‌نام باید به اینترنت متصل باشید",

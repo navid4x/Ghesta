@@ -11,7 +11,7 @@ import {
   persianMonths,
   persianWeekDaysShort,
   formatPersianDate,
-  gregorianToJalali,
+  toPersianDigits,
 } from "@/lib/persian-calendar"
 import type { Installment } from "@/lib/types"
 import { DayInstallmentsPopup } from "@/components/day-installments-popup"
@@ -105,12 +105,6 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
     return installmentDates.includes(gregorianDate)
   }
   
-  function toPersianDigits(str: string | number): string {
-    if (str === null || str === undefined) return "";
-    const persianDigits = "۰۱۲۳۴۵۶۷۸۹";
-    return String(str).replace(/[0-9]/g, (w) => persianDigits[+w]);
-  }
-
   return (
     <>
       <Card className="p-4 dir-rtl text-right">

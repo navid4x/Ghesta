@@ -51,17 +51,6 @@ function isInSyncQueue(itemId: string): boolean {
 }
 
 // ============================================
-// 🆕 Helper: بررسی جدید بودن item
-// ============================================
-function isRecentItem(item: Installment): boolean {
-  const itemTime = new Date(item.created_at).getTime()
-  const now = Date.now()
-  const fiveMinutes = 5 * 60 * 1000
-
-  return (now - itemTime) < fiveMinutes
-}
-
-// ============================================
 // 📥 LOAD INSTALLMENTS - فوق سریع
 // ============================================
 export async function loadInstallments(): Promise<Installment[]> {
@@ -532,7 +521,4 @@ export async function getDeletedInstallments(): Promise<Installment[]> {
     }
   })
 }
-export function getPendingOperationsCount(): number {
-  const { getQueueSize } = require("@/lib/background-sync")
-  return getQueueSize()
-}
+
