@@ -43,8 +43,8 @@ function setCache(userId: string, data: Installment[]): void {
 // ============================================
 function isInSyncQueue(itemId: string): boolean {
   const queue = getQueue()
-  return queue.some(op => 
-    op.data?.id === itemId || 
+  return queue.some(op =>
+    op.data?.id === itemId ||
     op.data?.installmentId === itemId
   )
 }
@@ -56,7 +56,7 @@ function isRecentItem(item: Installment): boolean {
   const itemTime = new Date(item.created_at).getTime()
   const now = Date.now()
   const fiveMinutes = 5 * 60 * 1000
-  
+
   return (now - itemTime) < fiveMinutes
 }
 
@@ -94,7 +94,7 @@ export async function loadInstallments(): Promise<Installment[]> {
   // ✅ 4. اگر داده محلی داره، اونو برگردون و در پس‌زمینه از سرور بگیر
   if (localData.length > 0) {
     console.log("[Sync] ⚡ Returning local data, refreshing in background...")
-    refreshDataInBackground(userId)
+    await refreshDataInBackground(userId)
     return localData
   }
 
@@ -104,7 +104,7 @@ export async function loadInstallments(): Promise<Installment[]> {
     const serverData = await fetchFromServer(userId)
     saveLocalInstallments(userId, serverData)
     setCache(userId, serverData)
-    return serverData.filter(item => !item.deleted_at)
+    return serverData
   } catch (error) {
     console.error("[Sync] Error fetching from server:", error)
     return localData
@@ -169,50 +169,54 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
   if (!user) return
 
   const userId = user.id
+  const now = new Date().toISOString()
 
-  // 🔧 گرفتن همه installments (شامل deleted)
-  const stored = localStorage.getItem(`installments-${userId}`)
-  const installments = stored ? JSON.parse(stored) : []
-  
-  const installment = installments.find((i: Installment) => i.id === installmentId)
-  
-  if (installment) {
-    installment.deleted_at = new Date().toISOString()
-    installment.updated_at = new Date().toISOString()
-    
-    // علامت‌گذاری payments
-    installment.payments.forEach((payment: any) => {
-      payment.deleted_at = installment.deleted_at
-    })
-    
-    // 🔧 ذخیره با deleted items (موقتی تا sync بشه)
-    localStorage.setItem(`installments-${userId}`, JSON.stringify(installments))
-    invalidateCache()
+  console.log("[Delete] Soft deleting:", installmentId)
 
-    console.log("[Sync] ⚡ Soft deleted locally (instant!)")
+  // اضافه به صف sync
+  addToQueue({
+    type: "soft_delete",
+    entityType: "installment",
+    data: {
+      id: installmentId,
+      deleted_at: now,
+      updated_at: now,
+    },
+  })
 
-    addToQueue({
-      type: "soft_delete",
-      entityType: "installment",
-      data: { 
-        id: installmentId,
-        deleted_at: installment.deleted_at,
-        updated_at: installment.updated_at
-      },
-    })
-    
-    // 🔧 بعد از اضافه به صف، فوراً پاک کن از localStorage
-    // (چون دیگه نیازی نیست توی لیست اصلی باشه)
-    setTimeout(() => {
-      const updated = installments.filter((i: Installment) => i.id !== installmentId)
-      localStorage.setItem(`installments-${userId}`, JSON.stringify(updated))
-      
-      // Trigger data refresh event
-      window.dispatchEvent(new CustomEvent("data-refreshed", { 
-        detail: updated.filter((i: Installment) => !i.deleted_at) 
-      }))
-    }, 1)
+  // دریافت data
+  const localData = getLocalInstallments(userId)
+  const installment = localData.find((i) => i.id === installmentId)
+
+  if (!installment) return
+
+  // Clone با deleted_at
+  const deletedInstallment = {
+    ...installment,
+    deleted_at: now,
+    updated_at: now,
+    payments: installment.payments?.map((p: any) => ({
+      ...p,
+      deleted_at: now,
+    })) || [],
   }
+
+  // اضافه به Trash (اگه تابع داری)
+  // moveToTrash(userId, deletedInstallment)
+
+  // حذف از لیست فوری (بدون setTimeout!)
+  const filtered = localData.filter((i) => i.id !== installmentId)
+  saveLocalInstallments(userId, filtered)
+  invalidateCache()
+
+  // Dispatch event فوری
+  window.dispatchEvent(
+      new CustomEvent("data-refreshed", {
+        detail: filtered,
+      }),
+  )
+
+  console.log("[Delete] ✅ Complete")
 }
 
 // ============================================
@@ -227,21 +231,21 @@ export async function restoreInstallment(installmentId: string): Promise<void> {
   // 🔧 اول چک کن در deleted items باشه
   const deletedItems = await getDeletedInstallments()
   const installment = deletedItems.find((i) => i.id === installmentId)
-  
+
   if (installment && installment.deleted_at) {
     // پاک کردن deleted_at
     delete installment.deleted_at
     installment.updated_at = new Date().toISOString()
-    
+
     // بازیابی payments
     installment.payments.forEach(payment => {
       delete payment.deleted_at
     })
-    
+
     // 🔧 اضافه کردن به لیست اصلی
     const installments = getLocalInstallments(userId)
     installments.push(installment)
-    
+
     saveLocalInstallments(userId, installments)
     invalidateCache()
 
@@ -250,12 +254,12 @@ export async function restoreInstallment(installmentId: string): Promise<void> {
     addToQueue({
       type: "restore",
       entityType: "installment",
-      data: { 
+      data: {
         id: installmentId,
         updated_at: installment.updated_at
       },
     })
-    
+
     // Trigger refresh
     window.dispatchEvent(new CustomEvent("data-refreshed", { detail: installments }))
   }
@@ -274,7 +278,7 @@ export async function hardDeleteInstallment(installmentId: string): Promise<void
   const stored = localStorage.getItem(`installments-${userId}`)
   const installments = stored ? JSON.parse(stored) : []
   const filtered = installments.filter((i: Installment) => i.id !== installmentId)
-  
+
   localStorage.setItem(`installments-${userId}`, JSON.stringify(filtered))
   invalidateCache()
 
@@ -400,7 +404,7 @@ async function fetchFromServer(userId: string): Promise<Installment[]> {
       installment_payments(*)
     `)
     .eq("user_id", userId)
-    //.is("deleted_at", null)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
   if (error) throw error
@@ -414,7 +418,7 @@ async function fetchFromServer(userId: string): Promise<Installment[]> {
     return {
       ...inst,
       payments: (inst.installment_payments || [])
-        //.filter((p: any) => !p.deleted_at)
+        .filter((p: any) => !p.deleted_at)
         .map((p: any) => {
           // 🆕 اگر jalali_due_date نداره، از gregorian محاسبه کن
           if (!p.jalali_due_date && p.due_date) {
@@ -433,7 +437,7 @@ function getLocalInstallments(userId: string): Installment[] {
   if (typeof window === "undefined") return []
   const stored = localStorage.getItem(`installments-${userId}`)
   const installments = stored ? JSON.parse(stored) : []
-  
+
   // 🔧 فیلتر deleted items از localStorage
   return installments.filter((i: Installment) => !i.deleted_at)
 }
@@ -443,81 +447,37 @@ function saveLocalInstallments(userId: string, installments: Installment[]): voi
   const toSave = installments.filter(i => {
     // اگر deleted نیست، ذخیره کن
     if (!i.deleted_at) return true
-    
+
     // اگر deleted هست، فقط در صورتی ذخیره کن که در صف sync باشه
     return isInSyncQueue(i.id)
   })
-  
+
   localStorage.setItem(`installments-${userId}`, JSON.stringify(toSave))
 }
 // ============================================
 // 🔀 MERGE LOGIC با Soft Delete
 // ============================================
-function mergeInstallments(local: Installment[], server: Installment[], userId: string): Installment[] {
-  const merged = new Map<string, Installment>()
+function mergeInstallments(local: any[], server: any[], userId: string) {
+  const merged = new Map()
 
+  // ✅ Server items
+  server.forEach(item => merged.set(item.id, item))
 
-  console.log("[Sync] Merging:", { localCount: local.length, serverCount: server.length })
-
-  // 1️⃣ Server data = Source of Truth
-  server.forEach((item) => {
-    // 🔧 فقط active items رو اضافه کن
-    //if (!item.deleted_at) {
-      merged.set(item.id, item)
-    //}
-  })
-
-  // 2️⃣ Local data که در server نیست
-  local.forEach((item) => {
-    const serverItem = merged.get(item.id)
-
-    // 🔧 اگر deleted هست، skip کن (نباید در لیست اصلی باشه)
-    if (item.deleted_at) {
-      console.log("[Sync] Skipping deleted item:", item.id)
-      return
-    }
-
-    if (serverItem?.deleted_at!==null) {
-      const index = local.findIndex(item => item.id === serverItem?.id);
-
-      if (index !== -1) {
-        local[index].deleted_at = serverItem?.deleted_at;
-        localStorage.setItem(`installments-${userId}`,JSON.stringify(local));
-      }
-
-      console.log("[Sync] Set item as a deleted in cache:", item.id)
-      return
-    }
-
-    if (!serverItem) {
+  // 🔥 Local items
+  local.forEach(item => {
+    if (!merged.has(item.id)) {
+      // اگه در queue باشه → نگه دار
+      // وگرنه → حذف کن! (در server deleted شده)
       if (isInSyncQueue(item.id) || isRecentItem(item)) {
         merged.set(item.id, item)
-        console.log("[Sync] Keeping local item (in sync queue):", item.id)
       } else {
-        console.log("[Sync] Discarding local item (not in server and not pending):", item.id)
+        console.log('🗑️ Removing deleted:', item.id)
+        // نمی‌ذاریم در merged!
       }
-      return
-    }
-
-    const localTime = new Date(item.updated_at).getTime()
-    const serverTime = new Date(serverItem.updated_at).getTime()
-
-    if (localTime > serverTime) {
-      merged.set(item.id, item)
-      console.log("[Sync] Local is newer:", item.id)
     }
   })
 
-  const result = Array.from(merged.values())
-
-  // 🔧 فیلتر نهایی: اطمینان از اینکه هیچ deleted item در نتیجه نباشه
-  const filtered = result.filter(item => !item.deleted_at)
-
-  console.log("[Sync] Merge complete:", { resultCount: filtered.length })
-
-  invalidateCache()
-
-  return filtered
+  return Array.from(merged.values())
 }
 // ============================================
 // 📊 GET DELETED ITEMS (برای نمایش در UI)
