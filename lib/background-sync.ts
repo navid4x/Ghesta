@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import { getConnectionStatus } from "@/lib/connection-state"
 
 const SYNC_QUEUE_KEY = "sync_queue"
 const SYNC_INTERVAL = 30000 // 30 ثانیه
@@ -58,7 +59,7 @@ async function syncNow(): Promise<void> {
   if (typeof window === "undefined") return
 
   // اگر آفلاین است یا در حال sync است، skip کن
-  if (!navigator.onLine || isSyncing) {
+  if (!getConnectionStatus() || isSyncing) {
     return
   }
 
@@ -288,7 +289,7 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
   console.log(`[BG Sync] Added to queue: ${newOp.type} (Queue size: ${queue.length})`)
 
   // اگر آنلاین است، فوری sync کن
-  if (navigator.onLine && !isSyncing) {
+  if (getConnectionStatus() && !isSyncing) {
     // noinspection JSIgnoredPromiseFromCall
     syncNow()
   }

@@ -24,6 +24,7 @@ import {
 } from "@/lib/persian-calendar"
 import { PersianDatePicker } from "@/components/persian-date-picker"
 import { saveInstallment, deleteInstallment } from "@/lib/data-sync"
+import { useSupabaseConnection } from "@/hooks/useSupabaseConnection"
 import { ConfirmDeleteDialog } from "@/components/confirm-delete-dialog"
 
 interface InstallmentDialogProps {
@@ -44,6 +45,7 @@ export function InstallmentDialog({
   userId,
 }: InstallmentDialogProps) {
   const { toast } = useToast()
+  const isOnline = useSupabaseConnection()
   const [creditorName, setCreditorName] = useState("")
   const [itemDescription, setItemDescription] = useState("")
   const [totalAmount, setTotalAmount] = useState("")
@@ -311,7 +313,7 @@ export function InstallmentDialog({
 
       toast({
         title: installment ? "قسط ویرایش شد" : "قسط ایجاد شد",
-        description: navigator.onLine ? "تغییرات ذخیره و همگام‌سازی شد" : "تغییرات محلی ذخیره شد",
+        description: isOnline ? "تغییرات ذخیره و همگام‌سازی شد" : "تغییرات محلی ذخیره شد",
       })
 
       onSuccess()
@@ -338,7 +340,7 @@ export function InstallmentDialog({
 
       toast({
         title: "قسط حذف شد",
-        description: navigator.onLine 
+        description: isOnline 
           ? "قسط حذف و همگام‌سازی شد. برای بازیابی به بخش سطل زباله مراجعه کنید." 
           : "قسط محلی حذف شد. می‌توانید از سطل زباله بازیابی کنید.",
       })

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import { getConnectionStatus } from "@/lib/connection-state"
 
 export interface AuthUser {
   id: string
@@ -19,7 +20,7 @@ export async function loginOrSignup(
   action: "login" | "signup" | "offline"
 }> {
   // 1️⃣ اگر آنلاین بود → سعی کن Login کنه
-  if (navigator.onLine) {
+  if (getConnectionStatus()) {
     try {
       const supabase = createClient()
 
@@ -136,7 +137,7 @@ export async function loginOrSignup(
 // 🚪 LOGOUT
 // ============================================
 export async function logout(): Promise<void> {
-  if (navigator.onLine) {
+  if (getConnectionStatus()) {
     try {
       const supabase = createClient()
       await supabase.auth.signOut()
@@ -158,7 +159,7 @@ export async function logout(): Promise<void> {
 // 👤 GET CURRENT USER
 // ============================================
 export async function getCurrentUser(): Promise<AuthUser | null> {
-  if (navigator.onLine) {
+  if (getConnectionStatus()) {
     try {
       const supabase = createClient()
       const {
@@ -187,7 +188,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 // 🔄 SYNC
 // ============================================
 export async function syncPendingAuth(): Promise<boolean> {
-  if (!navigator.onLine) {
+  if (!getConnectionStatus()) {
     console.log("[Sync] ⏸️ آفلاین")
     return false
   }

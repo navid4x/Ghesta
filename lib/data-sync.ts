@@ -1,4 +1,5 @@
 import {createClient} from "@/lib/supabase/client"
+import {getConnectionStatus} from "@/lib/connection-state"
 import type {Installment} from "@/lib/types"
 import {getCurrentUser} from "@/lib/auth-handler"
 import {addToQueue, getQueue} from "@/lib/background-sync"
@@ -86,7 +87,7 @@ export async function loadInstallments(): Promise<Installment[]> {
   console.log("[Sync] 📂 Local data count:", localData.length)
 
   // ✅ 3. اگر آفلاین است، همین الان برگردون
-  if (!navigator.onLine) {
+  if (!getConnectionStatus()) {
     console.log("[Sync] 📴 Offline mode")
     return localData
   }
@@ -489,7 +490,7 @@ export async function getDeletedInstallments(): Promise<Installment[]> {
 
   const userId = user.id
 
-  if (!navigator.onLine) {
+  if (!getConnectionStatus()) {
     // 🔧 در حالت آفلاین، از localStorage بخون (بدون فیلتر)
     const stored = localStorage.getItem(`installments-${userId}`)
     const installments = stored ? JSON.parse(stored) : []

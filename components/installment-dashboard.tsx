@@ -26,6 +26,7 @@ import {LoanCalculator} from "./loan-calculator"
 import {formatCurrencyPersian, gregorianToJalali, persianMonths, toPersianDigits} from "@/lib/persian-calendar"
 import {getLastPaidPayment, loadInstallments, togglePayment, undoLastPayment} from "@/lib/data-sync"
 import {startBackgroundSync, stopBackgroundSync} from "@/lib/background-sync"
+import {useSupabaseConnection} from "@/hooks/useSupabaseConnection"
 import {ConfirmUndoDialog} from "./confirm-undo-dialog"
 
 interface InstallmentDashboardProps {
@@ -33,6 +34,7 @@ interface InstallmentDashboardProps {
 }
 
 export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
+  const isOnline = useSupabaseConnection()
   const [installments, setInstallments] = useState<Installment[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | null>(null)
@@ -73,7 +75,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     window.addEventListener("sync-complete", handleSyncComplete)
 
     const refreshInterval = setInterval(() => {
-      if (navigator.onLine) {
+      if (isOnline) {
         loadData()
       }
     }, 30000)
@@ -219,7 +221,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   })
 
   // ============================================
-  // 📅 اقساط ماه جاری (از امروز تا آخر ماه)
+  // 📅 اقساط ماه جاری (از ام��وز تا آخر ماه)
   // ============================================
   const currentMonthInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
