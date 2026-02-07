@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+// @ts-ignore
 import webPush from "web-push"
 import { createClient } from "@supabase/supabase-js"
 

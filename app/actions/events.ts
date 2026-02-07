@@ -2,7 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { Event } from "@/lib/types"
 
 export async function createEvent(formData: FormData) {
   const supabase = await createClient()

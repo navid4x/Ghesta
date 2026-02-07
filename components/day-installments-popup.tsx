@@ -26,6 +26,7 @@ export function DayInstallmentsPopup({
 }: DayInstallmentsPopupProps) {
 
   return (
+      // @ts-ignore
     <AnimatePresence>
       {open && (
         <>

@@ -39,7 +39,7 @@ export interface PaymentHistory {
 export type SyncOperationType = 
   | "create" 
   | "update" 
-  | "soft_delete" 
-  | "hard_delete" 
-  | "toggle_payment" 
+  | "toggle_payment"
+  | "soft_delete"
+  | "hard_delete"
   | "restore"

@@ -44,6 +44,7 @@ export async function loginOrSignup(
           },
         })
 
+        // @ts-ignore
         data = signupResult.data
         error = signupResult.error
 

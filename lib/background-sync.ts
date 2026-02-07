@@ -6,7 +6,7 @@ const MAX_RETRIES = 3
 
 interface SyncOperation {
   id: string
-  type: "create" | "update" | "delete" | "toggle_payment"
+  type: "create" | "update" | "delete" | "toggle_payment" | "soft_delete"| "hard_delete" | "restore"
   entityType: "installment" | "payment"
   data: any
   timestamp: string
@@ -30,10 +30,12 @@ export function startBackgroundSync(): void {
   console.log("[BG Sync] Starting background sync...")
 
   // اولین sync فوری
+  // noinspection JSIgnoredPromiseFromCall
   syncNow()
 
   // سپس هر 1 ثانیه چک کن
   syncInterval = setInterval(() => {
+    // noinspection JSIgnoredPromiseFromCall
     syncNow()
   }, SYNC_INTERVAL)
 }
@@ -275,7 +277,7 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
 
   const newOp: SyncOperation = {
     ...operation,
-    id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: `sync_${Date.now()}_${Math.random().toString(36).substring(2,12)}`,
     timestamp: new Date().toISOString(),
     retries: 0,
   }
@@ -287,6 +289,7 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
 
   // اگر آنلاین است، فوری sync کن
   if (navigator.onLine && !isSyncing) {
+    // noinspection JSIgnoredPromiseFromCall
     syncNow()
   }
 }
@@ -300,9 +303,9 @@ export function getQueueSize(): number {
   return getQueue().length
 }
 
-export function clearQueue(): void {
-  saveQueue([])
-}
+// export function clearQueue(): void {
+//   saveQueue([])
+// }
 
 // ============================================
 // 🌐 Event Listeners
@@ -311,6 +314,7 @@ if (typeof window !== "undefined") {
   // شروع sync وقتی آنلاین میشه
   window.addEventListener("online", () => {
     console.log("[BG Sync] Network online - starting sync")
+    // noinspection JSIgnoredPromiseFromCall
     syncNow()
   })
 

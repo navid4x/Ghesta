@@ -1,8 +1,8 @@
-import { createClient } from "@/lib/supabase/client"
-import type { Installment } from "@/lib/types"
-import { getCurrentUser } from "@/lib/auth-handler"
-import { addToQueue, getQueue } from "@/lib/background-sync"
-import { gregorianStringToJalaliString } from "@/lib/persian-calendar"
+import {createClient} from "@/lib/supabase/client"
+import type {Installment} from "@/lib/types"
+import {getCurrentUser} from "@/lib/auth-handler"
+import {addToQueue, getQueue} from "@/lib/background-sync"
+import {gregorianStringToJalaliString} from "@/lib/persian-calendar"
 
 const CACHE_KEY = "installments_cache"
 const CACHE_DURATION = 30000 // 30 ثانیه
@@ -104,7 +104,7 @@ export async function loadInstallments(): Promise<Installment[]> {
     const serverData = await fetchFromServer(userId)
     saveLocalInstallments(userId, serverData)
     setCache(userId, serverData)
-    return serverData
+    return serverData.filter(item => !item.deleted_at)
   } catch (error) {
     console.error("[Sync] Error fetching from server:", error)
     return localData
@@ -211,7 +211,7 @@ export async function deleteInstallment(installmentId: string): Promise<void> {
       window.dispatchEvent(new CustomEvent("data-refreshed", { 
         detail: updated.filter((i: Installment) => !i.deleted_at) 
       }))
-    }, 1000)
+    }, 1)
   }
 }
 
@@ -400,7 +400,7 @@ async function fetchFromServer(userId: string): Promise<Installment[]> {
       installment_payments(*)
     `)
     .eq("user_id", userId)
-    .is("deleted_at", null)
+    //.is("deleted_at", null)
     .order("created_at", { ascending: false })
 
   if (error) throw error
@@ -414,7 +414,7 @@ async function fetchFromServer(userId: string): Promise<Installment[]> {
     return {
       ...inst,
       payments: (inst.installment_payments || [])
-        .filter((p: any) => !p.deleted_at)
+        //.filter((p: any) => !p.deleted_at)
         .map((p: any) => {
           // 🆕 اگر jalali_due_date نداره، از gregorian محاسبه کن
           if (!p.jalali_due_date && p.due_date) {
@@ -456,23 +456,36 @@ function saveLocalInstallments(userId: string, installments: Installment[]): voi
 function mergeInstallments(local: Installment[], server: Installment[], userId: string): Installment[] {
   const merged = new Map<string, Installment>()
 
+
   console.log("[Sync] Merging:", { localCount: local.length, serverCount: server.length })
 
   // 1️⃣ Server data = Source of Truth
   server.forEach((item) => {
     // 🔧 فقط active items رو اضافه کن
-    if (!item.deleted_at) {
+    //if (!item.deleted_at) {
       merged.set(item.id, item)
-    }
+    //}
   })
 
   // 2️⃣ Local data که در server نیست
   local.forEach((item) => {
     const serverItem = merged.get(item.id)
-    
+
     // 🔧 اگر deleted هست، skip کن (نباید در لیست اصلی باشه)
     if (item.deleted_at) {
       console.log("[Sync] Skipping deleted item:", item.id)
+      return
+    }
+
+    if (serverItem?.deleted_at!==null) {
+      const index = local.findIndex(item => item.id === serverItem?.id);
+
+      if (index !== -1) {
+        local[index].deleted_at = serverItem?.deleted_at;
+        localStorage.setItem(`installments-${userId}`,JSON.stringify(local));
+      }
+
+      console.log("[Sync] Set item as a deleted in cache:", item.id)
       return
     }
 
@@ -496,12 +509,14 @@ function mergeInstallments(local: Installment[], server: Installment[], userId: 
   })
 
   const result = Array.from(merged.values())
-  
+
   // 🔧 فیلتر نهایی: اطمینان از اینکه هیچ deleted item در نتیجه نباشه
   const filtered = result.filter(item => !item.deleted_at)
-  
+
   console.log("[Sync] Merge complete:", { resultCount: filtered.length })
-  
+
+  invalidateCache()
+
   return filtered
 }
 // ============================================

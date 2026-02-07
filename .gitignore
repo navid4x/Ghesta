@@ -10,6 +10,7 @@
 # production
 /build
 
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -25,3 +26,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/.idea/Ghesta.iml
+/.idea/modules.xml
+/pnpm-workspace.yaml
+/.idea/dictionaries/project.xml
+/.idea/vcs.xml

@@ -139,6 +139,7 @@ export function InstallmentDialog({
         due_date: jalaliStringToGregorianString(jalaliStartDate),
         amount: amount,
         is_paid: false,
+        // @ts-ignore
         paid_date: null,
       })
       return payments

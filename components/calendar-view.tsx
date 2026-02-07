@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Plus, CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   getTodayPersian,
   persianMonths,
@@ -14,9 +14,6 @@ import {
   formatPersianDate,
 } from "@/lib/persian-calendar"
 import { cn } from "@/lib/utils"
-import type { Event } from "@/lib/types"
-import { EventDialog } from "./event-dialog"
-
 interface CalendarViewProps {
   initialEvents?: Event[]
 }
@@ -24,39 +21,9 @@ interface CalendarViewProps {
 export function CalendarView({ initialEvents = [] }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState<[number, number, number]>(getTodayPersian())
   const [selectedDate, setSelectedDate] = useState<[number, number, number] | null>(getTodayPersian())
-  const [events, setEvents] = useState<Event[]>([])
-  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
 
-  const [year, month, day] = currentDate
+  const [year, month] = currentDate
   const today = getTodayPersian()
-
-  useEffect(() => {
-    loadEvents()
-  }, [currentDate])
-
-  function loadEvents() {
-    if (typeof window === "undefined") return
-
-    const stored = localStorage.getItem("calendar_events")
-    const allEvents: Event[] = stored ? JSON.parse(stored) : []
-
-    // Filter events for current month
-    const firstDay = formatPersianDate(year, month, 1)
-    const lastDay = formatPersianDate(year, month, getPersianMonthDays(year, month))
-
-    const [gy1, gm1, gd1] = jalaliToGregorian(year, month, 1)
-    const [gy2, gm2, gd2] = jalaliToGregorian(year, month, getPersianMonthDays(year, month))
-
-    const startDate = `${gy1}-${gm1.toString().padStart(2, "0")}-${gd1.toString().padStart(2, "0")}`
-    const endDate = `${gy2}-${gm2.toString().padStart(2, "0")}-${gd2.toString().padStart(2, "0")}`
-
-    const filtered = allEvents.filter((event) => {
-      return event.event_date >= startDate && event.event_date <= endDate
-    })
-
-    setEvents(filtered)
-  }
 
   function goToNextMonth() {
     if (month === 12) {
@@ -96,7 +63,7 @@ function toPersianDigits(str: string | number): string {
       isToday: boolean
       isSelected: boolean
       isHoliday: boolean
-      hasEvents: boolean
+      //hasEvents: boolean
       date: [number, number, number]
     }> = []
 
@@ -114,7 +81,7 @@ function toPersianDigits(str: string | number): string {
           isToday: false,
           isSelected: false,
           isHoliday: false,
-          hasEvents: false,
+          // hasEvents: false,
           date: [prevYear, prevMonth, day],
         })
       }
@@ -124,11 +91,10 @@ function toPersianDigits(str: string | number): string {
     for (let i = 1; i <= daysInMonth; i++) {
       const dateKey = formatPersianDate(year, month, i)
       const isHoliday = dateKey in iranianHolidays
-      const hasEvents = events.some((event) => {
-        const [gy, gm, gd] = jalaliToGregorian(year, month, i)
-        const eventDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
-        return event.event_date === eventDate
-      })
+      // const hasEvents = events.some((event) => {
+      //   const [gy, gm, gd] = jalaliToGregorian(year, month, i)
+      //   const eventDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
+      // })
 
       days.push({
         day: i,
@@ -137,7 +103,7 @@ function toPersianDigits(str: string | number): string {
         isSelected:
           selectedDate !== null && year === selectedDate[0] && month === selectedDate[1] && i === selectedDate[2],
         isHoliday,
-        hasEvents,
+        //hasEvents,
         date: [year, month, i],
       })
     }
@@ -154,7 +120,7 @@ function toPersianDigits(str: string | number): string {
         isToday: false,
         isSelected: false,
         isHoliday: false,
-        hasEvents: false,
+        //hasEvents: false,
         date: [nextYear, nextMonth, i],
       })
     }
@@ -166,25 +132,15 @@ function toPersianDigits(str: string | number): string {
     setSelectedDate(date)
   }
 
-  function handleAddEvent() {
-    setSelectedEvent(null)
-    setIsEventDialogOpen(true)
-  }
+  // function handleAddEvent() {
+  //   setSelectedEvent(null)
+  //   setIsEventDialogOpen(true)
+  // }
 
-  function handleEventClick(event: Event) {
-    setSelectedEvent(event)
-    setIsEventDialogOpen(true)
-  }
-
-  const selectedDateEvents = selectedDate
-    ? events.filter((event) => {
-        const [gy, gm, gd] = jalaliToGregorian(selectedDate[0], selectedDate[1], selectedDate[2])
-        const eventDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
-        return event.event_date === eventDate
-      })
-    : []
-
-  const selectedDateHoliday = selectedDate ? iranianHolidays[formatPersianDate(...selectedDate)] : null
+  // function handleEventClick(event: Event) {
+  //   setSelectedEvent(event)
+  //   setIsEventDialogOpen(true)
+  // }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
@@ -238,13 +194,13 @@ function toPersianDigits(str: string | number): string {
                   dayInfo.isToday && "bg-primary font-bold text-primary-foreground hover:bg-primary/90",
                   dayInfo.isSelected && !dayInfo.isToday && "bg-accent ring-2 ring-primary",
                   (dayInfo.isHoliday || isFriday) && dayInfo.isCurrentMonth && !dayInfo.isToday && "text-red-600",
-                  dayInfo.hasEvents && "font-semibold",
+                  // dayInfo.hasEvents && "font-semibold",
                 )}
               >
                 {dayInfo.day}
-                {dayInfo.hasEvents && (
-                  <div className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />
-                )}
+                {/*{dayInfo.hasEvents && (*/}
+                {/*  <div className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />*/}
+                {/*)}*/}
               </button>
             )
           })}
@@ -252,53 +208,30 @@ function toPersianDigits(str: string | number): string {
       </Card>
 
       {/* Side panel */}
-      <div className="space-y-4">
-        <Card className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">
-              {selectedDate ? `${selectedDate[2]} ${persianMonths[selectedDate[1] - 1]}` : "رویدادها"}
-            </h3>
-            <Button size="icon" onClick={handleAddEvent}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+      {/*<div className="space-y-4">*/}
+      {/*  <Card className="p-6">*/}
+      {/*    <div className="mb-4 flex items-center justify-between">*/}
+      {/*      <h3 className="text-lg font-semibold">*/}
+      {/*        {selectedDate ? `${selectedDate[2]} ${persianMonths[selectedDate[1] - 1]}` : "رویدادها"}*/}
+      {/*      </h3>*/}
+      {/*      <Button size="icon" onClick={handleAddEvent}>*/}
+      {/*        <Plus className="h-4 w-4" />*/}
+      {/*      </Button>*/}
+      {/*    </div>*/}
 
-          <div className="space-y-3">
-            {selectedDateHoliday && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="h-4 w-4" />
-                  <span className="font-semibold">{selectedDateHoliday}</span>
-                </div>
-              </div>
-            )}
+      {/*    <div className="space-y-3">*/}
+      {/*      {selectedDateHoliday && (*/}
+      {/*        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">*/}
+      {/*          <div className="flex items-center gap-2">*/}
+      {/*            <CalendarIcon className="h-4 w-4" />*/}
+      {/*            <span className="font-semibold">{selectedDateHoliday}</span>*/}
+      {/*          </div>*/}
+      {/*        </div>*/}
+      {/*      )}*/}
 
-            {selectedDateEvents.length > 0 ? (
-              selectedDateEvents.map((event) => (
-                <button
-                  key={event.id}
-                  onClick={() => handleEventClick(event)}
-                  className="w-full rounded-lg border bg-card p-3 text-right transition-colors hover:bg-accent"
-                >
-                  <h4 className="font-semibold">{event.title}</h4>
-                  {event.description && <p className="mt-1 text-sm text-muted-foreground">{event.description}</p>}
-                  {event.event_time && <p className="mt-1 text-xs text-muted-foreground">{event.event_time}</p>}
-                </button>
-              ))
-            ) : (
-              <p className="text-center text-sm text-muted-foreground">رویدادی برای این روز ثبت نشده</p>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <EventDialog
-        open={isEventDialogOpen}
-        onOpenChange={setIsEventDialogOpen}
-        selectedDate={selectedDate}
-        event={selectedEvent}
-        onSuccess={loadEvents}
-      />
+      {/*    </div>*/}
+      {/*  </Card>*/}
+      {/*</div>*/}
     </div>
   )
 }
