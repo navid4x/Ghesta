@@ -81,7 +81,7 @@ function toPersianDigits(str: string | number): string {
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <div className="p-3">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <Button variant="outline" size="icon" onClick={previousMonth} className="h-7 w-7 bg-transparent">
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -92,11 +92,11 @@ function toPersianDigits(str: string | number): string {
               <ChevronLeft className="h-4 w-4" />
             </Button>
           </div>
-          <div className="grid grid-cols-7 text-sidebar-primary-foreground border-0 rounded-full mb-1 gap-0 bg-slate-600">
+          <div className="grid grid-cols-7 text-sidebar-primary-foreground border-0 rounded-full mb-2 gap-0 bg-slate-600">
             {persianWeekDaysShort.map((day) => (
               <div
                 key={day}
-                className="font-medium opacity-100 text-center px-0 text-xs h-5 mx-0"
+                className="font-medium opacity-100 text-center px-0 text-xs h-6 mx-0"
               >
                 {toPersianDigits(day)}
               </div>
