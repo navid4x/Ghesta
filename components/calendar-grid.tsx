@@ -128,7 +128,7 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
 
         <div className="grid grid-cols-7 text-sidebar-primary-foreground border-0 rounded-full mb-1 gap-0 bg-slate-600">
           {[...persianWeekDaysShort].reverse().map((day) => (
-            <div key={day} className="text-sm font-medium opacity-100 text-center px-0 mx-0 py-1.5">
+            <div key={day} className="text-sm font-medium opacity-100 text-center px-0 mx-0 py-1 lg:py-2">
               {day}
             </div>
           ))}

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v13"
+const CACHE_VERSION = "v14"
 const STATIC_CACHE = `ghesta-static-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `ghesta-dynamic-${CACHE_VERSION}`
 
