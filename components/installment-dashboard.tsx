@@ -60,29 +60,22 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     startBackgroundSync()
 
     const handleDataRefreshed = (event: CustomEvent<Installment[]>) => {
-      console.log("[v0] Data refreshed from server")
+      console.log("[Dashboard] Data refreshed")
       setInstallments(event.detail)
     }
 
     const handleSyncComplete = () => {
-      console.log("[v0] Sync complete - reloading data")
+      console.log("[Dashboard] Sync complete - reloading data")
       loadData()
     }
 
     window.addEventListener("data-refreshed", handleDataRefreshed as EventListener)
     window.addEventListener("sync-complete", handleSyncComplete)
 
-    const refreshInterval = setInterval(() => {
-      if (navigator.onLine) {
-        loadData()
-      }
-    }, 30000)
-
     return () => {
       stopBackgroundSync()
       window.removeEventListener("data-refreshed", handleDataRefreshed as EventListener)
       window.removeEventListener("sync-complete", handleSyncComplete)
-      clearInterval(refreshInterval)
     }
   }, [userId, loadData])
 

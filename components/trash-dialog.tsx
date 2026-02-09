@@ -31,8 +31,9 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
   async function loadDeletedItems() {
     setLoading(true)
     try {
-      const [items] = await Promise.all([getDeletedInstallments()]);
-      setDeletedItems(items);
+      // ✅ حالا از کش می‌خونه، نه سرور!
+      const items = await getDeletedInstallments()
+      setDeletedItems(items)
     } catch (error) {
       console.error("[Trash] Error loading deleted items:", error)
     } finally {
@@ -73,7 +74,6 @@ export function TrashDialog({ open, onOpenChange, onRestore }: TrashDialogProps)
         title: "🗑️ حذف شد",
         description: "قسط برای همیشه حذف شد",
       })
-      //await delay(1000)
 
       await loadDeletedItems()
     } catch (error) {

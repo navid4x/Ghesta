@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getPendingOperationsCount } from "@/lib/data-sync"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
+import {useToast} from "@/hooks/use-toast";
+
 
 export default function Home() {
   const router = useRouter()
@@ -18,6 +19,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [isOnline, setIsOnline] = useState(true)
   const [pendingOps, setPendingOps] = useState(0)
+  const { toast } = useToast()
 
   useEffect(() => {
     async function loadUser() {
@@ -31,7 +33,7 @@ export default function Home() {
         setUser(currentUser)
         setLoading(false)
         updatePendingOps()
-        
+
         // ✨ شروع Background Sync
         startBackgroundSync()
       }
@@ -43,27 +45,43 @@ export default function Home() {
     const cleanup = setupOnlineListener(async (online) => {
       setIsOnline(online)
       if (online) {
-        console.log("[v0] Network online - refreshing user and syncing...")
+        console.log("[v0] Network online - refreshing...")
         const refreshedUser = await getCurrentUser()
         if (refreshedUser) {
           setUser(refreshedUser)
         }
-        updatePendingOps()
       }
     })
 
-    // ✨ گوش دادن به sync-complete event
+    // ✨ Event Listeners جدید
     const handleSyncComplete = () => {
       console.log("[v0] Sync complete!")
       updatePendingOps()
     }
-    
-    window.addEventListener('sync-complete', handleSyncComplete)
+
+    const handleQueueUpdated = () => {
+      updatePendingOps()
+    }
+
+    const handleSyncError = (event: CustomEvent) => {
+      console.error("[v0] Sync error:", event.detail.message)
+      toast({
+        variant: "destructive",
+        title: "خطا در همگام‌سازی",
+        description: event.detail.message,
+      })
+    }
+
+    window.addEventListener("sync-complete", handleSyncComplete)
+    window.addEventListener("queue-updated", handleQueueUpdated)
+    window.addEventListener("sync-error", handleSyncError as EventListener)
 
     return () => {
       cleanup()
       stopBackgroundSync() // ✨ توقف Background Sync
-      window.removeEventListener('sync-complete', handleSyncComplete)
+      window.removeEventListener("sync-complete", handleSyncComplete)
+      window.removeEventListener("queue-updated", handleQueueUpdated)
+      window.removeEventListener("sync-error", handleSyncError as EventListener)
     }
   }, [router])
 

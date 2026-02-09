@@ -91,10 +91,6 @@ function toPersianDigits(str: string | number): string {
     for (let i = 1; i <= daysInMonth; i++) {
       const dateKey = formatPersianDate(year, month, i)
       const isHoliday = dateKey in iranianHolidays
-      // const hasEvents = events.some((event) => {
-      //   const [gy, gm, gd] = jalaliToGregorian(year, month, i)
-      //   const eventDate = `${gy}-${gm.toString().padStart(2, "0")}-${gd.toString().padStart(2, "0")}`
-      // })
 
       days.push({
         day: i,
@@ -131,17 +127,6 @@ function toPersianDigits(str: string | number): string {
   function handleDateClick(date: [number, number, number]) {
     setSelectedDate(date)
   }
-
-  // function handleAddEvent() {
-  //   setSelectedEvent(null)
-  //   setIsEventDialogOpen(true)
-  // }
-
-  // function handleEventClick(event: Event) {
-  //   setSelectedEvent(event)
-  //   setIsEventDialogOpen(true)
-  // }
-
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_400px]">
       <Card className="p-6">
@@ -194,44 +179,14 @@ function toPersianDigits(str: string | number): string {
                   dayInfo.isToday && "bg-primary font-bold text-primary-foreground hover:bg-primary/90",
                   dayInfo.isSelected && !dayInfo.isToday && "bg-accent ring-2 ring-primary",
                   (dayInfo.isHoliday || isFriday) && dayInfo.isCurrentMonth && !dayInfo.isToday && "text-red-600",
-                  // dayInfo.hasEvents && "font-semibold",
                 )}
               >
                 {dayInfo.day}
-                {/*{dayInfo.hasEvents && (*/}
-                {/*  <div className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-primary" />*/}
-                {/*)}*/}
               </button>
             )
           })}
         </div>
       </Card>
-
-      {/* Side panel */}
-      {/*<div className="space-y-4">*/}
-      {/*  <Card className="p-6">*/}
-      {/*    <div className="mb-4 flex items-center justify-between">*/}
-      {/*      <h3 className="text-lg font-semibold">*/}
-      {/*        {selectedDate ? `${selectedDate[2]} ${persianMonths[selectedDate[1] - 1]}` : "رویدادها"}*/}
-      {/*      </h3>*/}
-      {/*      <Button size="icon" onClick={handleAddEvent}>*/}
-      {/*        <Plus className="h-4 w-4" />*/}
-      {/*      </Button>*/}
-      {/*    </div>*/}
-
-      {/*    <div className="space-y-3">*/}
-      {/*      {selectedDateHoliday && (*/}
-      {/*        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">*/}
-      {/*          <div className="flex items-center gap-2">*/}
-      {/*            <CalendarIcon className="h-4 w-4" />*/}
-      {/*            <span className="font-semibold">{selectedDateHoliday}</span>*/}
-      {/*          </div>*/}
-      {/*        </div>*/}
-      {/*      )}*/}
-
-      {/*    </div>*/}
-      {/*  </Card>*/}
-      {/*</div>*/}
     </div>
   )
 }
