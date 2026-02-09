@@ -96,7 +96,7 @@ function toPersianDigits(str: string | number): string {
             {persianWeekDaysShort.map((day) => (
               <div
                 key={day}
-                className="font-medium opacity-100 text-center px-0 text-xs h-6 mx-0"
+                className="font-medium opacity-100 text-center py-0.5 px-0 text-xs h-6 mx-0"
               >
                 {toPersianDigits(day)}
               </div>
