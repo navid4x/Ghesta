@@ -114,7 +114,7 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
   return (
     <>
       <Card className="p-4 dir-rtl text-right">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={handleNextMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -126,7 +126,7 @@ export function CalendarGrid({ onDateSelect, installmentDates = [], allInstallme
           </Button>
         </div>
 
-        <div className="grid grid-cols-7 text-sidebar-primary-foreground border-0 rounded-full mb-0 gap-1 bg-slate-600">
+        <div className="grid grid-cols-7 text-sidebar-primary-foreground border-0 rounded-full mb-1 gap-0 bg-slate-600">
           {[...persianWeekDaysShort].reverse().map((day) => (
             <div key={day} className="text-sm font-medium opacity-100 text-center px-0 mx-0 py-1.5">
               {day}
