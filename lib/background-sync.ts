@@ -6,9 +6,10 @@ import { gregorianStringToJalaliString } from "@/lib/persian-calendar"
 // 🔧 تنظیمات
 // ========================================
 const SYNC_QUEUE_KEY = "sync_queue"
-const SYNC_INTERVAL = 5000 // 5 ثانیه
+const SYNC_INTERVAL = 10000 // 10 ثانیه (کاهش فرکانس برای بهینه‌سازی)
 const MAX_RETRIES = 3
 const BROADCAST_CHANNEL_NAME = "ghesta-sync"
+const DEBOUNCE_DELAY = 1000 // 1 ثانیه debounce
 
 // ========================================
 // 📊 Types
@@ -36,6 +37,7 @@ let syncInterval: NodeJS.Timeout | null = null
 let isSyncing = false
 let broadcastChannel: BroadcastChannel | null = null
 let lastServerSync = 0
+let debounceTimer: NodeJS.Timeout | null = null
 
 // ========================================
 // 📡 BroadcastChannel برای Multi-tab Sync
@@ -94,23 +96,43 @@ export function startBackgroundSync(): void {
     return
   }
 
-  console.log("[Sync] 🚀 Starting background sync (5s interval)...")
+  console.log("[Sync] 🚀 Starting background sync (10s interval)...")
 
   // Initialize BroadcastChannel
   initBroadcastChannel()
 
-  // اولین sync فوری
-  syncWithServer().catch(console.error)
+  // اولین sync با debounce
+  debouncedSync()
 
-  // هر 5 ثانیه
+  // هر 10 ثانیه
   syncInterval = setInterval(() => {
-    syncWithServer().catch(console.error)
+    debouncedSync()
   }, SYNC_INTERVAL)
 
   // Event listeners
   if (typeof window !== "undefined") {
     window.addEventListener("online", handleOnline)
     window.addEventListener("offline", handleOffline)
+    // Sync on visibility change (when user returns to tab)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+  }
+}
+
+// Debounced sync to prevent excessive calls
+function debouncedSync(): void {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+  }
+  debounceTimer = setTimeout(() => {
+    syncWithServer().catch(console.error)
+  }, DEBOUNCE_DELAY)
+}
+
+// Handle visibility change
+function handleVisibilityChange(): void {
+  if (!document.hidden && navigator.onLine) {
+    console.log("[Sync] Tab visible - syncing...")
+    debouncedSync()
   }
 }
 
@@ -124,6 +146,11 @@ export function stopBackgroundSync(): void {
     console.log("[Sync] ⏸️ Stopped")
   }
 
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+
   if (broadcastChannel) {
     broadcastChannel.close()
     broadcastChannel = null
@@ -132,6 +159,7 @@ export function stopBackgroundSync(): void {
   if (typeof window !== "undefined") {
     window.removeEventListener("online", handleOnline)
     window.removeEventListener("offline", handleOffline)
+    document.removeEventListener("visibilitychange", handleVisibilityChange)
   }
 }
 

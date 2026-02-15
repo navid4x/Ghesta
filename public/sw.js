@@ -1,9 +1,16 @@
-const CACHE_VERSION = "v14"
+const CACHE_VERSION = "v15"
 const STATIC_CACHE = `ghesta-static-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `ghesta-dynamic-${CACHE_VERSION}`
+const IMAGE_CACHE = `ghesta-images-${CACHE_VERSION}`
+const API_CACHE = `ghesta-api-${CACHE_VERSION}`
 
 // فایل‌های استاتیک
 const STATIC_ASSETS = ["/", "/auth", "/manifest.json", "/icon-192.jpg", "/icon-512.jpg"]
+
+// Cache limits
+const MAX_DYNAMIC_CACHE_SIZE = 50
+const MAX_IMAGE_CACHE_SIZE = 30
+const MAX_API_CACHE_AGE = 5 * 60 * 1000 // 5 minutes
 
 // ========================================
 // 📥 نصب Service Worker
@@ -33,7 +40,12 @@ self.addEventListener("activate", (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+            if (
+              cacheName !== STATIC_CACHE &&
+              cacheName !== DYNAMIC_CACHE &&
+              cacheName !== IMAGE_CACHE &&
+              cacheName !== API_CACHE
+            ) {
               console.log("[SW] Deleting old cache:", cacheName)
               return caches.delete(cacheName)
             }
@@ -54,6 +66,24 @@ self.addEventListener("activate", (event) => {
 
   return self.clients.claim()
 })
+
+// Helper: Limit cache size
+async function limitCacheSize(cacheName, maxItems) {
+  const cache = await caches.open(cacheName)
+  const keys = await cache.keys()
+  if (keys.length > maxItems) {
+    await cache.delete(keys[0])
+    await limitCacheSize(cacheName, maxItems)
+  }
+}
+
+// Helper: Check if cached response is fresh
+function isCacheFresh(response, maxAge) {
+  if (!response) return false
+  const cachedTime = response.headers.get('sw-cached-time')
+  if (!cachedTime) return false
+  return Date.now() - parseInt(cachedTime) < maxAge
+}
 
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
@@ -94,6 +124,27 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
+  // درخواست‌های تصاویر
+  if (request.destination === 'image' || /\.(jpg|jpeg|png|gif|webp|avif|svg)$/i.test(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached
+        
+        return fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const responseClone = response.clone()
+            caches.open(IMAGE_CACHE).then((cache) => {
+              cache.put(request, responseClone)
+              limitCacheSize(IMAGE_CACHE, MAX_IMAGE_CACHE_SIZE)
+            })
+          }
+          return response
+        })
+      })
+    )
+    return
+  }
+
   // درخواست‌های API و Supabase
   if (url.pathname.startsWith("/api/") || url.origin.includes("supabase.co")) {
     if (request.method !== "GET") {
@@ -108,21 +159,31 @@ self.addEventListener("fetch", (event) => {
       return
     }
 
-    // Network First برای GET
+    // Network First با cache time-based invalidation
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const responseClone = response.clone()
-            caches.open(DYNAMIC_CACHE).then((cache) => {
-              cache.put(request, responseClone)
-            })
-          }
-          return response
-        })
-        .catch(() => {
-          return caches.match(request).then((cached) => {
-            if (cached) {
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const responseClone = response.clone()
+              const headers = new Headers(responseClone.headers)
+              headers.append('sw-cached-time', Date.now().toString())
+              
+              const modifiedResponse = new Response(responseClone.body, {
+                status: responseClone.status,
+                statusText: responseClone.statusText,
+                headers: headers
+              })
+              
+              caches.open(API_CACHE).then((cache) => {
+                cache.put(request, modifiedResponse)
+                limitCacheSize(API_CACHE, MAX_DYNAMIC_CACHE_SIZE)
+              })
+            }
+            return response
+          })
+          .catch(() => {
+            if (cached && isCacheFresh(cached, MAX_API_CACHE_AGE)) {
               return cached
             }
             return new Response(JSON.stringify({ error: "Offline - No cached data" }), {
@@ -130,7 +191,13 @@ self.addEventListener("fetch", (event) => {
               headers: { "Content-Type": "application/json" },
             })
           })
-        }),
+        
+        // Return cached if fresh, otherwise wait for network
+        if (cached && isCacheFresh(cached, MAX_API_CACHE_AGE)) {
+          return cached
+        }
+        return fetchPromise
+      })
     )
     return
   }

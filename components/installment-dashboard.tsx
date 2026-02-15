@@ -1,12 +1,13 @@
 "use client"
 
 import type React from "react"
-import {useCallback, useEffect, useState} from "react"
-import {Card} from "@/components/ui/card"
-import {Button} from "@/components/ui/button"
-import {Badge} from "@/components/ui/badge"
-import {Progress} from "@/components/ui/progress"
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs"
+import { useCallback, useEffect, useState, useMemo, memo } from "react"
+import dynamic from "next/dynamic"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertCircle,
   Banknote,
@@ -18,15 +19,17 @@ import {
   Trash2,
   Undo2
 } from "lucide-react"
-import type {Installment} from "@/lib/types"
-import {InstallmentDialog} from "./installment-dialog"
-import {CalendarGrid} from "./calendar-grid"
-import {TrashDialog} from "./trash-dialog"
-import {LoanCalculator} from "./loan-calculator"
-import {formatCurrencyPersian, gregorianToJalali, persianMonths, toPersianDigits} from "@/lib/persian-calendar"
-import {getLastPaidPayment, loadInstallments, togglePayment, undoLastPayment} from "@/lib/data-sync"
-import {startBackgroundSync, stopBackgroundSync} from "@/lib/background-sync"
-import {ConfirmUndoDialog} from "./confirm-undo-dialog"
+import type { Installment } from "@/lib/types"
+import { formatCurrencyPersian, gregorianToJalali, persianMonths, toPersianDigits } from "@/lib/persian-calendar"
+import { getLastPaidPayment, loadInstallments, togglePayment, undoLastPayment } from "@/lib/data-sync"
+import { startBackgroundSync, stopBackgroundSync } from "@/lib/background-sync"
+
+// Lazy load heavy components
+const InstallmentDialog = dynamic(() => import("./installment-dialog").then(mod => ({ default: mod.InstallmentDialog })), { ssr: false })
+const CalendarGrid = dynamic(() => import("./calendar-grid").then(mod => ({ default: mod.CalendarGrid })), { ssr: false })
+const TrashDialog = dynamic(() => import("./trash-dialog").then(mod => ({ default: mod.TrashDialog })), { ssr: false })
+const LoanCalculator = dynamic(() => import("./loan-calculator").then(mod => ({ default: mod.LoanCalculator })), { ssr: false })
+const ConfirmUndoDialog = dynamic(() => import("./confirm-undo-dialog").then(mod => ({ default: mod.ConfirmUndoDialog })), { ssr: false })
 
 interface InstallmentDashboardProps {
   userId: string
@@ -79,59 +82,64 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     }
   }, [userId, loadData])
 
-  function handleAddInstallment(startDate?: string) {
+  // Memoize callbacks
+  const handleAddInstallment = useCallback((startDate?: string) => {
     setSelectedInstallment(null)
     setInitialDate(startDate)
     setIsDialogOpen(true)
-  }
+  }, [])
 
-  function handleEditInstallment(installment: Installment) {
+  const handleEditInstallment = useCallback((installment: Installment) => {
     setSelectedInstallment(installment)
     setInitialDate(undefined)
     setIsDialogOpen(true)
-  }
+  }, [])
 
-  async function handleTogglePayment(installmentId: string, paymentId: string) {
+  const handleTogglePayment = useCallback(async (installmentId: string, paymentId: string) => {
     await togglePayment(installmentId, paymentId)
     await loadData()
-  }
+  }, [loadData])
 
-  function formatCurrency(amount: number): string {
+  const formatCurrency = useCallback((amount: number): string => {
     return formatCurrencyPersian(amount)
-  }
+  }, [])
 
-  function getDaysUntilDue(dueDate: string): number {
+  const getDaysUntilDue = useCallback((dueDate: string): number => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const due = new Date(dueDate)
     due.setHours(0, 0, 0, 0)
     const diffTime = due.getTime() - today.getTime()
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  }
+  }, [])
 
-  function getPersianDate(gregorianDate: string, jalaliDate?: string): string {
-    // اگر jalali_due_date داریم، مستقیم استفاده کن
+  const getPersianDate = useCallback((gregorianDate: string, jalaliDate?: string): string => {
     if (jalaliDate) {
       const [year, month, day] = jalaliDate.split("/").map(Number)
       return `${toPersianDigits(day)} ${persianMonths[month - 1]} ${toPersianDigits(year)}`
     }
     
-    // fallback: تبدیل از gregorian
     const [year, month, day] = gregorianDate.split("-").map(Number)
     const [jy, jm, jd] = gregorianToJalali(year, month, day)
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
-  }
+  }, [])
 
-  const todayGregorian = new Date()
-  todayGregorian.setHours(0, 0, 0, 0)
+  // Memoize today's date calculations
+  const todayGregorian = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return today
+  }, [])
 
-  const [todayJalaliYear, todayJalaliMonth] = gregorianToJalali(
-    todayGregorian.getFullYear(),
-    todayGregorian.getMonth() + 1,
-    todayGregorian.getDate(),
-  )
+  const [todayJalaliYear, todayJalaliMonth] = useMemo(() => {
+    return gregorianToJalali(
+      todayGregorian.getFullYear(),
+      todayGregorian.getMonth() + 1,
+      todayGregorian.getDate(),
+    )
+  }, [todayGregorian])
 
-  function getRecurrenceLabel(recurrence: string): string {
+  const getRecurrenceLabel = useCallback((recurrence: string): string => {
     const labels = {
       daily: "روزانه",
       weekly: "هفتگی",
@@ -140,124 +148,105 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       never: "هرگز",
     }
     return labels[recurrence as keyof typeof labels] || recurrence
-  }
+  }, [])
 
-  // ============================================
-  // 💰 کل بدهی (از امروز به بعد)
-  // ============================================
-  const totalDebt = installments.reduce((sum, inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) {
-      return sum
-    }
+  // Memoize expensive calculations
+  const totalDebt = useMemo(() => {
+    return installments.reduce((sum, inst) => {
+      if (!inst.payments || !Array.isArray(inst.payments)) return sum
 
-    const unpaidAmount = inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
+      const unpaidAmount = inst.payments
+        .filter((p) => {
+          if (p.is_paid) return false
+          const dueDate = new Date(p.due_date)
+          dueDate.setHours(0, 0, 0, 0)
+          return dueDate >= todayGregorian
+        })
+        .reduce((s, p) => s + (p.amount || 0), 0)
 
-        // فقط اقساطی که از امروز به بعد هستن
-        const dueDate = new Date(p.due_date)
-        dueDate.setHours(0, 0, 0, 0)
+      return sum + unpaidAmount
+    }, 0)
+  }, [installments, todayGregorian])
 
-        return dueDate >= todayGregorian
-      })
-      .reduce((s, p) => s + (p.amount || 0), 0)
+  const currentMonthDebt = useMemo(() => {
+    return installments.reduce((sum, inst) => {
+      if (!inst.payments || !Array.isArray(inst.payments)) return sum
 
-    return sum + unpaidAmount
-  }, 0)
+      const unpaidAmount = inst.payments
+        .filter((p) => {
+          if (p.is_paid) return false
+          const dueDate = new Date(p.due_date)
+          dueDate.setHours(0, 0, 0, 0)
+          if (dueDate < todayGregorian) return false
 
-  // ============================================
-  // 📅 بدهی ماه جاری (از امروز تا آخر ماه جاری)
-  // ============================================
-  const currentMonthDebt = installments.reduce((sum, inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) return sum
+          const [dueJY, dueJM] = gregorianToJalali(
+            dueDate.getFullYear(),
+            dueDate.getMonth() + 1,
+            dueDate.getDate(),
+          )
 
-    const unpaidAmount = inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
+          return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
+        })
+        .reduce((s, p) => s + (p.amount || 0), 0)
 
-        const dueDate = new Date(p.due_date)
-        dueDate.setHours(0, 0, 0, 0)
+      return sum + unpaidAmount
+    }, 0)
+  }, [installments, todayGregorian, todayJalaliYear, todayJalaliMonth])
 
-        // باید از امروز به بعد باشه
-        if (dueDate < todayGregorian) return false
+  const upcomingThisWeek = useMemo(() => {
+    return installments.flatMap((inst) => {
+      if (!inst.payments || !Array.isArray(inst.payments)) return []
+      return inst.payments
+        .filter((p) => {
+          if (p.is_paid) return false
+          const daysUntil = getDaysUntilDue(p.due_date)
+          return daysUntil >= 0 && daysUntil <= 7
+        })
+        .map((p) => ({ ...inst, payment: p }))
+    })
+  }, [installments, getDaysUntilDue])
 
-        // تبدیل به شمسی
-        const [dueJY, dueJM] = gregorianToJalali(
-          dueDate.getFullYear(),
-          dueDate.getMonth() + 1,
-          dueDate.getDate(),
-        )
+  const currentMonthInstallments = useMemo(() => {
+    return installments.flatMap((inst) => {
+      if (!inst.payments || !Array.isArray(inst.payments)) return []
+      return inst.payments
+        .filter((p) => {
+          if (p.is_paid) return false
+          const dueDate = new Date(p.due_date)
+          dueDate.setHours(0, 0, 0, 0)
+          if (dueDate < todayGregorian) return false
 
-        // چک کردن: آیا در ماه جاری هست؟
-        return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
-      })
-      .reduce((s, p) => s + (p.amount || 0), 0)
+          const [dueJY, dueJM] = gregorianToJalali(
+            dueDate.getFullYear(),
+            dueDate.getMonth() + 1,
+            dueDate.getDate(),
+          )
 
-    return sum + unpaidAmount
-  }, 0)
+          return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
+        })
+        .map((p) => ({ ...inst, payment: p }))
+    })
+  }, [installments, todayGregorian, todayJalaliYear, todayJalaliMonth])
 
-  // ============================================
-  // 📆 اقساط این هفته (7 روز آینده)
-  // ============================================
-  const upcomingThisWeek = installments.flatMap((inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) return []
-    return inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
-        const daysUntil = getDaysUntilDue(p.due_date)
-        // از امروز تا 7 روز آینده
-        return daysUntil >= 0 && daysUntil <= 7
-      })
-      .map((p) => ({ ...inst, payment: p }))
-  })
+  const overdueInstallments = useMemo(() => {
+    return installments.flatMap((inst) => {
+      if (!inst.payments || !Array.isArray(inst.payments)) return []
+      return inst.payments
+        .filter((p) => {
+          if (p.is_paid) return false
+          const daysUntil = getDaysUntilDue(p.due_date)
+          return daysUntil < 0
+        })
+        .map((p) => ({ ...inst, payment: p }))
+    })
+  }, [installments, getDaysUntilDue])
 
-  // ============================================
-  // 📅 اقساط ماه جاری (از امروز تا آخر ماه)
-  // ============================================
-  const currentMonthInstallments = installments.flatMap((inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) return []
-    return inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
-
-        const dueDate = new Date(p.due_date)
-        dueDate.setHours(0, 0, 0, 0)
-
-        // باید از امروز به بعد باشه
-        if (dueDate < todayGregorian) return false
-
-        const [dueJY, dueJM] = gregorianToJalali(
-          dueDate.getFullYear(),
-          dueDate.getMonth() + 1,
-          dueDate.getDate(),
-        )
-
-        // ماه و سال جاری
-        return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
-      })
-      .map((p) => ({ ...inst, payment: p }))
-  })
-
-  // ============================================
-  // ⚠️ اقساط معوقه (گذشته و پرداخت نشده)
-  // ============================================
-  const overdueInstallments = installments.flatMap((inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) return []
-    return inst.payments
-      .filter((p) => {
-        if (p.is_paid) return false
-        
-        // فقط اقساطی که تاریخشون گذشته
-        const daysUntil = getDaysUntilDue(p.due_date)
-        return daysUntil < 0
-      })
-      .map((p) => ({ ...inst, payment: p }))
-  })
-
-  const installmentDates = installments.flatMap((inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) return []
-    return inst.payments.filter((p) => !p.is_paid).map((p) => p.due_date)
-  })
+  const installmentDates = useMemo(() => {
+    return installments.flatMap((inst) => {
+      if (!inst.payments || !Array.isArray(inst.payments)) return []
+      return inst.payments.filter((p) => !p.is_paid).map((p) => p.due_date)
+    })
+  }, [installments])
 
   const getSelectedCardData = () => {
     switch (selectedCard) {

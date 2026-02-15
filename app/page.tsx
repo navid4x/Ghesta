@@ -1,16 +1,25 @@
 "use client"
 
-import { InstallmentDashboard } from "@/components/installment-dashboard"
-import { NotificationSettings } from "@/components/notification-settings"
+import dynamic from "next/dynamic"
 import { Wallet, LogOut, Wifi, WifiOff } from "lucide-react"
 import { getTodayPersian, persianMonths } from "@/lib/persian-calendar"
 import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, memo } from "react"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
-import {useToast} from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast"
+
+// Lazy load heavy components
+const InstallmentDashboard = dynamic(() => import("@/components/installment-dashboard").then(mod => ({ default: mod.InstallmentDashboard })), {
+  loading: () => <div className="flex items-center justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>,
+  ssr: false
+})
+
+const NotificationSettings = dynamic(() => import("@/components/notification-settings").then(mod => ({ default: mod.NotificationSettings })), {
+  ssr: false
+})
 
 
 export default function Home() {
@@ -21,11 +30,21 @@ export default function Home() {
   const [pendingOps, setPendingOps] = useState(0)
   const { toast } = useToast()
 
+  // Memoize callbacks
+  const updatePendingOps = useCallback(() => {
+    setPendingOps(getQueueSize())
+  }, [])
+
+  const handleLogout = useCallback(async () => {
+    stopBackgroundSync()
+    await logout()
+    router.push("/auth")
+    router.refresh()
+  }, [router])
+
   useEffect(() => {
     async function loadUser() {
       const currentUser = await getCurrentUser()
-
-      console.log("[v0] Current user:", currentUser ? `${currentUser.email} (${currentUser.id})` : "None")
 
       if (!currentUser) {
         router.replace("/auth")
@@ -33,8 +52,6 @@ export default function Home() {
         setUser(currentUser)
         setLoading(false)
         updatePendingOps()
-
-        // ✨ شروع Background Sync
         startBackgroundSync()
       }
     }
@@ -45,7 +62,6 @@ export default function Home() {
     const cleanup = setupOnlineListener(async (online) => {
       setIsOnline(online)
       if (online) {
-        console.log("[v0] Network online - refreshing...")
         const refreshedUser = await getCurrentUser()
         if (refreshedUser) {
           setUser(refreshedUser)
@@ -53,9 +69,7 @@ export default function Home() {
       }
     })
 
-    // ✨ Event Listeners جدید
     const handleSyncComplete = () => {
-      console.log("[v0] Sync complete!")
       updatePendingOps()
     }
 
@@ -64,7 +78,6 @@ export default function Home() {
     }
 
     const handleSyncError = (event: CustomEvent) => {
-      console.error("[v0] Sync error:", event.detail.message)
       toast({
         variant: "destructive",
         title: "خطا در همگام‌سازی",
@@ -78,23 +91,12 @@ export default function Home() {
 
     return () => {
       cleanup()
-      stopBackgroundSync() // ✨ توقف Background Sync
+      stopBackgroundSync()
       window.removeEventListener("sync-complete", handleSyncComplete)
       window.removeEventListener("queue-updated", handleQueueUpdated)
       window.removeEventListener("sync-error", handleSyncError as EventListener)
     }
-  }, [router])
-
-  function updatePendingOps() {
-    setPendingOps(getQueueSize())
-  }
-
-  async function handleLogout() {
-    stopBackgroundSync() // ✨ توقف قبل از logout
-    await logout()
-    router.push("/auth")
-    router.refresh()
-  }
+  }, [router, toast, updatePendingOps])
 
   if (loading || !user) {
     return (

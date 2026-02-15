@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Toaster } from "@/components/ui/toaster"
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration"
 import { UpdatePrompt } from "@/components/update-prompt"
+import { ErrorBoundary } from "@/components/error-boundary"
 import "./globals.css"
 
 const vazirmatn = Vazirmatn({
@@ -50,11 +51,13 @@ export default function RootLayout({
   return (
     <html lang="fa" dir="rtl">
       <body className={`${vazirmatn.className} font-sans antialiased`}>
-        <ServiceWorkerRegistration />
-        {children}
-        <Toaster />
-        <UpdatePrompt />
-        <Analytics />
+        <ErrorBoundary>
+          <ServiceWorkerRegistration />
+          {children}
+          <Toaster />
+          <UpdatePrompt />
+          <Analytics />
+        </ErrorBoundary>
       </body>
     </html>
   )
