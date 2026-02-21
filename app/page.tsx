@@ -25,13 +25,14 @@ export default function Home() {
 
   useEffect(() => {
     async function loadUser() {
-      // ← اول فوری از cache بخون - بدون هیچ منتظر موندنی
+      // ← اول فوری از cache بخون
+      let hasCachedUser = false
       try {
         const stored = localStorage.getItem("auth_user")
         if (stored) {
           const cachedUser = JSON.parse(stored)
           setUser(cachedUser)
-          setLoading(false)
+          hasCachedUser = true
           updatePendingOps()
           startBackgroundSync()
         }
@@ -39,29 +40,39 @@ export default function Home() {
         // cache خراب بود
       }
 
-      // در پس‌زمینه: چک اتصال + رفرش user از سرور
-      const [online, currentUser] = await Promise.all([
-        checkRealConnectivity(),
-        getCurrentUser(),
-      ])
+      // loading رو همیشه بعد از چک cache برمیداریم
+      // اگه cache نداشت، صفحه سفید نشون میده تا redirect بشه
+      setLoading(false)
 
-      setIsOnline(online)
-      prevOnlineRef.current = online
+      if (!hasCachedUser) {
+        // بدون cache: چک واقعی بکن
+        const online = await checkRealConnectivity()
+        setIsOnline(online)
+        prevOnlineRef.current = online
 
-      console.log("[v0] Current user:", currentUser ? currentUser.email : "None")
-      console.log("[v0] Real connectivity:", online)
+        if (!online) {
+          // آفلاین و cache نداره → برو auth
+          router.replace("/auth")
+          return
+        }
 
-      if (!currentUser) {
-        // اگه cache هم نداشت، برو auth
-        setLoading(false)
-        router.replace("/auth")
-        return
+        // آنلاینه، شاید session داره
+        const currentUser = await getCurrentUser()
+        if (!currentUser) {
+          router.replace("/auth")
+          return
+        }
+        setUser(currentUser)
+        updatePendingOps()
+        startBackgroundSync()
       }
 
-      setUser(currentUser)
-      setLoading(false)
-      updatePendingOps()
-      startBackgroundSync()
+      // در پس‌زمینه connectivity رو چک کن (بدون block کردن UI)
+      checkRealConnectivity().then((online) => {
+        setIsOnline(online)
+        prevOnlineRef.current = online
+        console.log("[v0] Real connectivity:", online)
+      })
     }
 
     loadUser()
