@@ -1,366 +1,227 @@
-import { createClient } from "@/lib/supabase/client"
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { signInOrSignUp, getCurrentUser } from "@/lib/auth-handler"
+import { WifiOff, Wallet } from "lucide-react"
+import { subscribeToPushNotifications } from "@/lib/push-notifications"
 import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 
-export interface AuthUser {
-  id: string
-  email: string
-  created_at: string
-}
+export default function AuthPage() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  // پیش‌فرض true - فرم نمایش داده میشه، فقط در پس‌زمینه چک میکنیم
+  const [isOnline, setIsOnline] = useState(true)
+  const router = useRouter()
+  const { toast } = useToast()
 
-// ============================================
-// 🔐 LOGIN OR SIGNUP - ورود یا ثبت‌نام خودکار
-// ============================================
-export async function loginOrSignup(
-  email: string,
-  password: string,
-): Promise<{
-  user: AuthUser | null
-  error: string | null
-  isOnline: boolean
-  action: "login" | "signup" | "offline"
-}> {
-  const isOnline = await checkRealConnectivity()
+  useEffect(() => {
+    // چک کاربر لاگین‌شده و وضعیت اتصال رو موازی اجرا میکنیم
+    // فرم بلافاصله نمایش داده میشه
+    async function init() {
+      // موازی: هم چک connectivity، هم چک user
+      const [online, currentUser] = await Promise.all([
+        checkRealConnectivity(),
+        getCurrentUser(),
+      ])
 
-  // 1️⃣ اگر آنلاین بود → سعی کن Login کنه
-  if (isOnline) {
-    try {
-      const supabase = createClient()
+      setIsOnline(online)
 
-      // اول سعی می‌کنیم Login کنیم
-      let { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // اگه لاگین بود redirect کن
+      if (currentUser) {
+        router.replace("/")
+      }
+    }
+
+    init()
+
+    // polling هر 15 ثانیه در پس‌زمینه
+    const interval = setInterval(async () => {
+      resetConnectivityCache()
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+    }, 15000)
+
+    const handleOnline = async () => {
+      resetConnectivityCache()
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+    }
+    const handleOffline = () => {
+      resetConnectivityCache()
+      setIsOnline(false)
+    }
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
+    }
+  }, [router])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (password.length < 6) {
+      toast({
+        title: "خطا",
+        description: "رمز عبور باید حداقل ۶ کاراکتر باشد",
+        variant: "destructive",
       })
+      return
+    }
 
-      // اگه یوزر وجود نداشت (خطای Invalid credentials) → SignUp می‌کنیم
-      if (error && error.message.includes("Invalid")) {
-        console.log("[Auth] کاربر وجود نداره → ثبت‌نام می‌کنیم")
+    setLoading(true)
 
-        const signupResult = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              email_confirm: false,
-            },
-          },
+    try {
+      // موقع submit یه بار دیگه چک میکنیم
+      resetConnectivityCache()
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+
+      if (!online) {
+        toast({
+          title: "⚠️ اتصال به سرور لازم است",
+          description: "برای ورود یا ثبت‌نام باید به سرور دسترسی داشته باشید",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const result = await signInOrSignUp(email, password)
+
+      if (!result.success) {
+        toast({
+          title: "خطا",
+          description: result.error || "ورود ناموفق بود",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const user = await getCurrentUser()
+
+      if (user) {
+        toast({
+          title: result.isNewUser ? "✅ حساب شما ایجاد شد!" : "✅ خوش آمدید!",
+          description: result.isNewUser ? "خوش آمدید به قسطا" : "با موفقیت وارد شدید",
         })
 
-        // @ts-ignore
-        data = signupResult.data
-        error = signupResult.error
-
-        if (!error && data.user) {
-          const user: AuthUser = {
-            id: data.user.id,
-            email: data.user.email!,
-            created_at: data.user.created_at,
+        if ("Notification" in window) {
+          const permission = await Notification.requestPermission()
+          if (permission === "granted") {
+            await subscribeToPushNotifications(user.id)
           }
-
-          if (data.session) {
-            await saveSession(data.session.access_token, data.session.refresh_token)
-          }
-
-          saveUserToLocal(user)
-          clearPendingSync()
-
-          console.log("[Auth] ✅ ثبت‌نام آنلاین موفق")
-          return { user, error: null, isOnline: true, action: "signup" }
-        }
-      }
-
-      // اگه Login موفق بود
-      if (!error && data.user) {
-        const user: AuthUser = {
-          id: data.user.id,
-          email: data.user.email!,
-          created_at: data.user.created_at,
         }
 
-        if (data.session) {
-          await saveSession(data.session.access_token, data.session.refresh_token)
-        }
-
-        saveUserToLocal(user)
-        await syncOfflineData(user.id)
-        clearPendingSync()
-
-        console.log("[Auth] ✅ ورود آنلاین موفق")
-        return { user, error: null, isOnline: true, action: "login" }
-      }
-
-      if (error) {
-        throw error
+        setTimeout(() => {
+          router.push("/")
+          router.refresh()
+        }, 1000)
       }
     } catch (error: any) {
-      console.error("[Auth] خطا در آنلاین:", error.message)
-
-      if (error.message.includes("fetch") || error.message.includes("network")) {
-        // ادامه به حالت آفلاین
-      } else {
-        return {
-          user: null,
-          error: error.message || "خطا در ورود",
-          isOnline: true,
-          action: "login",
-        }
-      }
+      toast({
+        title: "خطا",
+        description: error.message || "مشکلی پیش آمد",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
-  // 2️⃣ حالت آفلاین
-  console.log("[Auth] حالت آفلاین")
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
+      <Card className="w-full max-w-md shadow-2xl">
+        <CardHeader className="text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/30">
+              <Wallet className="h-8 w-8 text-primary-foreground" />
+            </div>
+          </div>
+          <CardTitle className="text-3xl font-bold">قسطا</CardTitle>
+          <CardDescription className="text-base">
+            برای ورود یا ثبت‌نام، ایمیل و رمز عبور خود را وارد کنید
+            {!isOnline && (
+              <span className="block mt-2 text-orange-600 dark:text-orange-400 font-medium">
+                ⚠️ اتصال به سرور برقرار نیست
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email">ایمیل</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@example.com"
+                required
+                dir="ltr"
+                className="mt-2"
+              />
+            </div>
 
-  const storedUser = getStoredUser()
+            <div>
+              <Label htmlFor="password">رمز عبور</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                dir="ltr"
+                className="mt-2"
+              />
+              <p className="mt-2 text-xs text-muted-foreground">حداقل ۶ کاراکتر</p>
+            </div>
 
-  if (storedUser && storedUser.email === email && (await verifyOfflinePassword(password))) {
-    console.log("[Auth] 📱 ورود آفلاین موفق")
-    return { user: storedUser, error: null, isOnline: false, action: "login" }
-  }
+            <Button
+              type="submit"
+              className="w-full h-11 text-base font-semibold"
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  در حال ورود...
+                </span>
+              ) : (
+                "ورود / ثبت‌نام"
+              )}
+            </Button>
+          </form>
 
-  const newUser = await createOfflineUser(email, password)
-  saveUserToLocal(newUser)
-  markForSync({ email, password })
-
-  console.log("[Auth] 📱 ثبت‌نام آفلاین موفق")
-  return { user: newUser, error: null, isOnline: false, action: "signup" }
-}
-
-// ============================================
-// 🚪 LOGOUT
-// ============================================
-export async function logout(): Promise<void> {
-  const isOnline = await checkRealConnectivity()
-
-  if (isOnline) {
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch (error) {
-      console.error("[Auth] خطا در خروج:", error)
-    }
-  }
-
-  localStorage.clear()
-  resetConnectivityCache()
-  console.log("[Auth] 🚪 خروج موفق")
-}
-
-// ============================================
-// 👤 GET CURRENT USER
-// ============================================
-export async function getCurrentUser(): Promise<AuthUser | null> {
-  // از cache نتیجه قبلی استفاده میکنه - fetch جدید نمیزنه اگه تازه چک شده
-  const isOnline = await checkRealConnectivity()
-
-  if (isOnline) {
-    try {
-      const supabase = createClient()
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser()
-
-      if (error || !user) {
-        return getStoredUser()
-      }
-
-      const authUser: AuthUser = {
-        id: user.id,
-        email: user.email!,
-        created_at: user.created_at,
-      }
-      saveUserToLocal(authUser)
-      return authUser
-    } catch {
-      // اگه Supabase خطا داد، از cache بخون
-      return getStoredUser()
-    }
-  }
-
-  return getStoredUser()
-}
-
-// ============================================
-// 🔄 SYNC
-// ============================================
-export async function syncPendingAuth(): Promise<boolean> {
-  const isOnline = await checkRealConnectivity()
-
-  if (!isOnline) {
-    console.log("[Sync] ⏸️ آفلاین")
-    return false
-  }
-
-  const pending = localStorage.getItem("pending_auth")
-  if (!pending) return true
-
-  try {
-    const { email, password } = JSON.parse(pending)
-
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-      },
-    })
-
-    if (!error && data.user) {
-      const onlineUser: AuthUser = {
-        id: data.user.id,
-        email: data.user.email!,
-        created_at: data.user.created_at,
-      }
-
-      saveUserToLocal(onlineUser)
-      await syncOfflineData(data.user.id)
-      clearPendingSync()
-
-      console.log("[Sync] ✅ همگام‌سازی موفق!")
-      return true
-    }
-  } catch (error) {
-    console.error("[Sync] ❌ خطا در همگام‌سازی:", error)
-  }
-
-  return false
-}
-
-// ============================================
-// 🔄 SYNC OFFLINE DATA
-// ============================================
-async function syncOfflineData(onlineUserId: string): Promise<void> {
-  try {
-    const storedUser = getStoredUser()
-    if (!storedUser) return
-
-    const offlineKey = `installments-${storedUser.id}`
-    const offlineData = localStorage.getItem(offlineKey)
-
-    if (offlineData && storedUser.id !== onlineUserId) {
-      const installments = JSON.parse(offlineData)
-
-      const updatedInstallments = installments.map((inst: any) => ({
-        ...inst,
-        user_id: onlineUserId,
-        id: inst.id.startsWith("offline_")
-          ? `${onlineUserId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-          : inst.id,
-      }))
-
-      const onlineKey = `installments-${onlineUserId}`
-      localStorage.setItem(onlineKey, JSON.stringify(updatedInstallments))
-      localStorage.removeItem(offlineKey)
-
-      if (typeof window !== "undefined") {
-        const syncQueue = localStorage.getItem("sync_queue")
-        const queue = syncQueue ? JSON.parse(syncQueue) : []
-
-        updatedInstallments.forEach((inst: any) => {
-          queue.push({
-            id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type: "create",
-            entityType: "installment",
-            data: inst,
-            timestamp: new Date().toISOString(),
-          })
-        })
-
-        localStorage.setItem("sync_queue", JSON.stringify(queue))
-      }
-
-      console.log("[Sync] ✅ اقساط با user_id جدید همگام‌سازی شدند")
-    }
-  } catch (error) {
-    console.error("[Sync] خطا در همگام‌سازی اقساط:", error)
-  }
-}
-
-// ============================================
-// 🔧 HELPER FUNCTIONS
-// ============================================
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
-}
-
-async function createOfflineUser(email: string, password: string): Promise<AuthUser> {
-  const user: AuthUser = {
-    id: `offline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    email,
-    created_at: new Date().toISOString(),
-  }
-
-  const hash = await hashPassword(password)
-  localStorage.setItem("password_hash", hash)
-
-  return user
-}
-
-function saveUserToLocal(user: AuthUser): void {
-  localStorage.setItem("auth_user", JSON.stringify(user))
-}
-
-function getStoredUser(): AuthUser | null {
-  const stored = localStorage.getItem("auth_user")
-  return stored ? JSON.parse(stored) : null
-}
-
-async function verifyOfflinePassword(password: string): Promise<boolean> {
-  const storedHash = localStorage.getItem("password_hash")
-  if (!storedHash) return false
-
-  const inputHash = await hashPassword(password)
-  return inputHash === storedHash
-}
-
-async function saveSession(accessToken: string, refreshToken: string): Promise<void> {
-  localStorage.setItem("session_token", accessToken)
-  localStorage.setItem("refresh_token", refreshToken)
-}
-
-function markForSync(credentials: { email: string; password: string }): void {
-  localStorage.setItem("pending_auth", JSON.stringify(credentials))
-}
-
-function clearPendingSync(): void {
-  localStorage.removeItem("pending_auth")
-}
-
-// ============================================
-// 🌐 ONLINE/OFFLINE LISTENER
-// ============================================
-export function setupOnlineListener(callback: (isOnline: boolean) => void): () => void {
-  // وقتی مرورگر آنلاین شد، واقعاً چک کن
-  const onOnline = async () => {
-    console.log("[Network] 🌐 مرورگر آنلاین شد - چک واقعی...")
-    resetConnectivityCache()
-    const realOnline = await checkRealConnectivity()
-    console.log("[Network] نتیجه چک واقعی:", realOnline)
-    callback(realOnline)
-    if (realOnline) {
-      await syncPendingAuth()
-    }
-  }
-
-  const onOffline = () => {
-    console.log("[Network] 📱 آفلاین شد")
-    resetConnectivityCache()
-    callback(false)
-  }
-
-  window.addEventListener("online", onOnline)
-  window.addEventListener("offline", onOffline)
-
-  return () => {
-    window.removeEventListener("online", onOnline)
-    window.removeEventListener("offline", onOffline)
-  }
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+            <p className="text-xs text-center text-muted-foreground leading-relaxed">
+              {isOnline ? (
+                <>
+                  🔐 اگر حساب کاربری دارید وارد می‌شوید، در غیر این صورت حساب جدید ایجاد می‌شود.
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-4 w-4 inline ml-1" />
+                  دسترسی به سرور امکان‌پذیر نیست. لطفاً اتصال اینترنت خود را بررسی کنید.
+                </>
+              )}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
