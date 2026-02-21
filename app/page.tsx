@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
 import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
@@ -18,72 +18,102 @@ export default function Home() {
   const router = useRouter()
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isOnline, setIsOnline] = useState(false) // ← پیش‌فرض false تا چک بشه
+  const [isOnline, setIsOnline] = useState(false)
   const [pendingOps, setPendingOps] = useState(0)
   const { toast } = useToast()
+  const prevOnlineRef = useRef<boolean | null>(null)
 
   useEffect(() => {
     async function loadUser() {
-      // ابتدا چک واقعی اینترنت
       const online = await checkRealConnectivity()
       setIsOnline(online)
+      prevOnlineRef.current = online
 
+      // getCurrentUser از localStorage میخونه اگه آفلاین بود - سریعه
       const currentUser = await getCurrentUser()
 
-      console.log("[v0] Current user:", currentUser ? `${currentUser.email} (${currentUser.id})` : "None")
+      console.log("[v0] Current user:", currentUser ? currentUser.email : "None")
       console.log("[v0] Real connectivity:", online)
 
       if (!currentUser) {
         router.replace("/auth")
-      } else {
-        setUser(currentUser)
-        setLoading(false)
-        updatePendingOps()
-        startBackgroundSync()
+        return
       }
+
+      setUser(currentUser)
+      setLoading(false)
+      updatePendingOps()
+      startBackgroundSync()
     }
 
-    loadUser()
+    // timeout اگه loadUser بیشتر از 8 ثانیه طول کشید
+    const loadingTimeout = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.log("[v0] Loading timeout - using local cache")
+          try {
+            const stored = localStorage.getItem("auth_user")
+            if (stored) {
+              setUser(JSON.parse(stored))
+              startBackgroundSync()
+            } else {
+              router.replace("/auth")
+            }
+          } catch {
+            router.replace("/auth")
+          }
+          return false
+        }
+        return prev
+      })
+    }, 8000)
 
-    const cleanup = setupOnlineListener(async (online) => {
+    loadUser().finally(() => clearTimeout(loadingTimeout))
+
+    // setupOnlineListener از checkRealConnectivity استفاده میکنه (در simple-auth.ts)
+    const cleanup = setupOnlineListener((online) => {
+      const prev = prevOnlineRef.current
       setIsOnline(online)
-      if (online) {
-        console.log("[v0] Network online - refreshing...")
-        const refreshedUser = await getCurrentUser()
-        if (refreshedUser) {
-          setUser(refreshedUser)
+      prevOnlineRef.current = online
+
+      if (prev !== null && prev !== online) {
+        if (online) {
+          toast({ title: "✅ اتصال برقرار شد", description: "ارتباط با سرور برقرار شد" })
+          getCurrentUser().then((u) => u && setUser(u))
+        } else {
+          toast({
+            variant: "destructive",
+            title: "⚠️ آفلاین",
+            description: "اتصال به سرور قطع شد. حالت آفلاین فعال است.",
+          })
         }
       }
     })
 
-    // چک دوره‌ای اتصال واقعی هر 30 ثانیه
+    // polling هر 30 ثانیه
     const connectivityInterval = setInterval(async () => {
       resetConnectivityCache()
       const online = await checkRealConnectivity()
-      setIsOnline(prev => {
-        if (prev !== online) {
-          console.log("[v0] Connectivity changed:", online)
-          if (online) {
-            toast({ title: "✅ اتصال برقرار شد", description: "اتصال به سرور برقرار شد" })
-          } else {
-            toast({ variant: "destructive", title: "⚠️ آفلاین", description: "اتصال به سرور قطع شد. حالت آفلاین فعال است." })
-          }
+      const prev = prevOnlineRef.current
+      prevOnlineRef.current = online
+      setIsOnline(online)
+
+      if (prev !== null && prev !== online) {
+        if (online) {
+          toast({ title: "✅ اتصال برقرار شد", description: "ارتباط با سرور برقرار شد" })
+        } else {
+          toast({
+            variant: "destructive",
+            title: "⚠️ آفلاین",
+            description: "اتصال به سرور قطع شد. حالت آفلاین فعال است.",
+          })
         }
-        return online
-      })
+      }
     }, 30000)
 
-    const handleSyncComplete = () => {
-      console.log("[v0] Sync complete!")
-      updatePendingOps()
-    }
-
-    const handleQueueUpdated = () => {
-      updatePendingOps()
-    }
-
+    const handleSyncComplete = () => updatePendingOps()
+    const handleQueueUpdated = () => updatePendingOps()
     const handleSyncError = (event: CustomEvent) => {
-      console.error("[v0] Sync error:", event.detail.message)
       toast({
         variant: "destructive",
         title: "خطا در همگام‌سازی",
@@ -96,8 +126,9 @@ export default function Home() {
     window.addEventListener("sync-error", handleSyncError as EventListener)
 
     return () => {
-      cleanup()
+      clearTimeout(loadingTimeout)
       clearInterval(connectivityInterval)
+      cleanup()
       stopBackgroundSync()
       window.removeEventListener("sync-complete", handleSyncComplete)
       window.removeEventListener("queue-updated", handleQueueUpdated)
