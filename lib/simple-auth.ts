@@ -151,6 +151,7 @@ export async function logout(): Promise<void> {
 // 👤 GET CURRENT USER
 // ============================================
 export async function getCurrentUser(): Promise<AuthUser | null> {
+  // از cache نتیجه قبلی استفاده میکنه - fetch جدید نمیزنه اگه تازه چک شده
   const isOnline = await checkRealConnectivity()
 
   if (isOnline) {
@@ -158,20 +159,23 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       const supabase = createClient()
       const {
         data: { user },
+        error,
       } = await supabase.auth.getUser()
 
-      if (user) {
-        const authUser: AuthUser = {
-          id: user.id,
-          email: user.email!,
-          created_at: user.created_at,
-        }
-
-        saveUserToLocal(authUser)
-        return authUser
+      if (error || !user) {
+        return getStoredUser()
       }
-    } catch (error) {
-      console.error("[Auth] خطا در دریافت کاربر:", error)
+
+      const authUser: AuthUser = {
+        id: user.id,
+        email: user.email!,
+        created_at: user.created_at,
+      }
+      saveUserToLocal(authUser)
+      return authUser
+    } catch {
+      // اگه Supabase خطا داد، از cache بخون
+      return getStoredUser()
     }
   }
 
