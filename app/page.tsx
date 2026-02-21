@@ -6,26 +6,32 @@ import { Wallet, LogOut, Wifi, WifiOff } from "lucide-react"
 import { getTodayPersian, persianMonths } from "@/lib/persian-calendar"
 import { Button } from "@/components/ui/button"
 import { logout, getCurrentUser, setupOnlineListener } from "@/lib/simple-auth"
+import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
-import {useToast} from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast"
 
 
 export default function Home() {
   const router = useRouter()
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline] = useState(false) // ← پیش‌فرض false تا چک بشه
   const [pendingOps, setPendingOps] = useState(0)
   const { toast } = useToast()
 
   useEffect(() => {
     async function loadUser() {
+      // ابتدا چک واقعی اینترنت
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+
       const currentUser = await getCurrentUser()
 
       console.log("[v0] Current user:", currentUser ? `${currentUser.email} (${currentUser.id})` : "None")
+      console.log("[v0] Real connectivity:", online)
 
       if (!currentUser) {
         router.replace("/auth")
@@ -33,14 +39,11 @@ export default function Home() {
         setUser(currentUser)
         setLoading(false)
         updatePendingOps()
-
-        // ✨ شروع Background Sync
         startBackgroundSync()
       }
     }
 
     loadUser()
-    setIsOnline(navigator.onLine)
 
     const cleanup = setupOnlineListener(async (online) => {
       setIsOnline(online)
@@ -53,7 +56,23 @@ export default function Home() {
       }
     })
 
-    // ✨ Event Listeners جدید
+    // چک دوره‌ای اتصال واقعی هر 30 ثانیه
+    const connectivityInterval = setInterval(async () => {
+      resetConnectivityCache()
+      const online = await checkRealConnectivity()
+      setIsOnline(prev => {
+        if (prev !== online) {
+          console.log("[v0] Connectivity changed:", online)
+          if (online) {
+            toast({ title: "✅ اتصال برقرار شد", description: "اتصال به سرور برقرار شد" })
+          } else {
+            toast({ variant: "destructive", title: "⚠️ آفلاین", description: "اتصال به سرور قطع شد. حالت آفلاین فعال است." })
+          }
+        }
+        return online
+      })
+    }, 30000)
+
     const handleSyncComplete = () => {
       console.log("[v0] Sync complete!")
       updatePendingOps()
@@ -78,7 +97,8 @@ export default function Home() {
 
     return () => {
       cleanup()
-      stopBackgroundSync() // ✨ توقف Background Sync
+      clearInterval(connectivityInterval)
+      stopBackgroundSync()
       window.removeEventListener("sync-complete", handleSyncComplete)
       window.removeEventListener("queue-updated", handleQueueUpdated)
       window.removeEventListener("sync-error", handleSyncError as EventListener)
@@ -90,7 +110,7 @@ export default function Home() {
   }
 
   async function handleLogout() {
-    stopBackgroundSync() // ✨ توقف قبل از logout
+    stopBackgroundSync()
     await logout()
     router.push("/auth")
     router.refresh()
@@ -125,7 +145,6 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* ✨ نمایش وضعیت sync */}
             {pendingOps > 0 && (
               <Badge variant="secondary" className="gap-1">
                 {isOnline ? (
@@ -135,19 +154,18 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                   
                     {toPersianDigits(pendingOps)} کار در انتظار
                   </>
                 )}
               </Badge>
             )}
-            
+
             {isOnline ? (
               <Wifi className="h-4 w-4 text-green-500" />
             ) : (
               <WifiOff className="h-4 w-4 text-orange-500" />
             )}
-            
+
             <Button onClick={handleLogout} variant="ghost" size="sm">
               <LogOut className="h-4 w-4" />
             </Button>
