@@ -7,7 +7,7 @@ import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 // 🔧 تنظیمات
 // ========================================
 const SYNC_QUEUE_KEY = "sync_queue"
-const SYNC_INTERVAL = 5000 // 5 ثانیه
+const SYNC_INTERVAL = 5000
 const MAX_RETRIES = 3
 const BROADCAST_CHANNEL_NAME = "ghesta-sync"
 
@@ -39,13 +39,10 @@ let broadcastChannel: BroadcastChannel | null = null
 let lastServerSync = 0
 
 // ========================================
-// 📡 BroadcastChannel برای Multi-tab Sync
+// 📡 BroadcastChannel
 // ========================================
 function initBroadcastChannel(): void {
-  if (typeof window === "undefined" || !("BroadcastChannel" in window)) {
-    console.log("[Sync] BroadcastChannel not supported")
-    return
-  }
+  if (typeof window === "undefined" || !("BroadcastChannel" in window)) return
 
   broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME)
 
@@ -54,22 +51,16 @@ function initBroadcastChannel(): void {
 
     switch (type) {
       case "CACHE_UPDATED":
-        console.log("[Sync] Cache updated in another tab")
-        // Trigger UI refresh
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("data-refreshed", { detail: data }))
         }
         break
-
       case "QUEUE_UPDATED":
-        console.log("[Sync] Queue updated in another tab")
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("queue-updated"))
         }
         break
-
       case "SYNC_COMPLETE":
-        console.log("[Sync] Sync completed in another tab")
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("sync-complete"))
         }
@@ -97,18 +88,15 @@ export function startBackgroundSync(): void {
 
   console.log("[Sync] 🚀 Starting background sync (5s interval)...")
 
-  // Initialize BroadcastChannel
   initBroadcastChannel()
 
   // اولین sync فوری
   syncWithServer().catch(console.error)
 
-  // هر 5 ثانیه
   syncInterval = setInterval(() => {
     syncWithServer().catch(console.error)
   }, SYNC_INTERVAL)
 
-  // Event listeners
   if (typeof window !== "undefined") {
     window.addEventListener("online", handleOnline)
     window.addEventListener("offline", handleOffline)
@@ -140,7 +128,8 @@ export function stopBackgroundSync(): void {
 // 🔄 Main Sync Logic
 // ========================================
 async function syncWithServer(): Promise<void> {
-    const isOnline = await checkRealConnectivity()  // ← اینجا تغییر کرد
+  // ← از checkRealConnectivity استفاده میکنه، نه navigator.onLine
+  const isOnline = await checkRealConnectivity()
   if (!isOnline || isSyncing) {
     return
   }
@@ -148,12 +137,8 @@ async function syncWithServer(): Promise<void> {
   isSyncing = true
 
   try {
-    // 1️⃣ پردازش صف write operations
     await processWriteQueue()
-
-    // 2️⃣ دریافت تغییرات از سرور
     await fetchServerUpdates()
-
     lastServerSync = Date.now()
   } catch (error) {
     console.error("[Sync] Error:", error)
@@ -201,7 +186,6 @@ async function processWriteQueue(): Promise<void> {
   if (successCount > 0) {
     console.log(`[Sync] ✨ ${successCount} operations synced!`)
 
-    // Trigger UI refresh after successful sync
     const userId = getUserId()
     if (userId) {
       const cached = getLocalCache(userId)
@@ -228,41 +212,31 @@ async function fetchServerUpdates(): Promise<void> {
   try {
     const supabase = createClient()
 
-    // ========================================
-    // 1️⃣ دریافت Installments فعال
-    // ========================================
     const { data: serverData, error } = await supabase
-        .from("installments")
-        .select(`
-        *,
-        installment_payments(*)
-      `)
-        .eq("user_id", userId)
-        .is("deleted_at", null)
-        .order("updated_at", { ascending: false })
+      .from("installments")
+      .select(`*, installment_payments(*)`)
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })
 
     if (error) throw error
 
-    // Format data
     const formattedData: Installment[] = (serverData || []).map((inst: any) => ({
       ...inst,
       jalali_start_date: inst.jalali_start_date || (inst.start_date ? gregorianStringToJalaliString(inst.start_date) : ""),
       payments: (inst.installment_payments || [])
-          .filter((p: any) => !p.deleted_at)
-          .map((p: any) => ({
-            ...p,
-            jalali_due_date: p.jalali_due_date || (p.due_date ? gregorianStringToJalaliString(p.due_date) : ""),
-          })),
+        .filter((p: any) => !p.deleted_at)
+        .map((p: any) => ({
+          ...p,
+          jalali_due_date: p.jalali_due_date || (p.due_date ? gregorianStringToJalaliString(p.due_date) : ""),
+        })),
     }))
 
-    // Merge با لوکال
     const localData = getLocalCache(userId)
     const merged = mergeWithConflictResolution(localData, formattedData, userId)
 
-    // بروزرسانی کش
     saveLocalCache(userId, merged)
 
-    // Trigger UI refresh
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("data-refreshed", { detail: merged }))
     }
@@ -270,23 +244,15 @@ async function fetchServerUpdates(): Promise<void> {
 
     console.log(`[Sync] 📥 Fetched ${formattedData.length} active items from server`)
 
-    // ========================================
-    // 2️⃣ دریافت Deleted Items (برای Trash)
-    // ========================================
     const { data: deletedData, error: deletedError } = await supabase
-        .from("installments")
-        .select(`
-        *,
-        installment_payments(*)
-      `)
-        .eq("user_id", userId)
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false })
-        .limit(50)
+      .from("installments")
+      .select(`*, installment_payments(*)`)
+      .eq("user_id", userId)
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false })
+      .limit(50)
 
-    if (deletedError) {
-      console.error("[Sync] Error fetching deleted items:", deletedError)
-    } else {
+    if (!deletedError) {
       const formattedDeleted: Installment[] = (deletedData || []).map((inst: any) => ({
         ...inst,
         jalali_start_date: inst.jalali_start_date || (inst.start_date ? gregorianStringToJalaliString(inst.start_date) : ""),
@@ -308,34 +274,29 @@ async function fetchServerUpdates(): Promise<void> {
 // 🔀 Merge با Last-Write-Wins
 // ========================================
 function mergeWithConflictResolution(
-    local: Installment[],
-    server: Installment[],
-    userId: string
+  local: Installment[],
+  server: Installment[],
+  userId: string
 ): Installment[] {
   const merged = new Map<string, Installment>()
   const queue = getQueue()
 
-  // Server items (پایه)
   server.forEach((item) => merged.set(item.id, item))
 
-  // Local items (با conflict resolution)
   local.forEach((localItem) => {
     const serverItem = merged.get(localItem.id)
 
-    // اگه در صف هست، Local را اولویت بده (user در حال کار است)
     if (isInQueue(localItem.id, queue)) {
       console.log(`[Merge] 🔄 ${localItem.id} in queue - keeping local`)
       merged.set(localItem.id, localItem)
       return
     }
 
-    // اگه سرور نداره، چک کن آیا جدید است یا پاک شده
     if (!serverItem) {
-        console.log(`[Merge] 🗑️ ${localItem.id} deleted on server - removing`)
-         return
+      console.log(`[Merge] 🗑️ ${localItem.id} deleted on server - removing`)
+      return
     }
 
-    // Last-Write-Wins
     const localTime = new Date(localItem.updated_at).getTime()
     const serverTime = new Date(serverItem.updated_at).getTime()
 
@@ -343,14 +304,12 @@ function mergeWithConflictResolution(
       console.log(`[Merge] 📝 ${localItem.id} local is newer - keeping local`)
       merged.set(localItem.id, localItem)
 
-      // اضافه به صف برای sync
       addToQueue({
         type: "update",
         entityType: "installment",
         data: { ...localItem, user_id: userId },
       })
     } else {
-      console.log(`[Merge] 📥 ${localItem.id} server is newer - using server`)
       merged.set(localItem.id, serverItem)
     }
   })
@@ -367,19 +326,15 @@ async function executeOperation(supabase: any, operation: SyncOperation): Promis
     case "update":
       await upsertInstallment(supabase, operation.data)
       break
-
     case "soft_delete":
       await softDeleteInstallment(supabase, operation.data.id, operation.data.deleted_at)
       break
-
     case "restore":
       await restoreInstallment(supabase, operation.data.id)
       break
-
     case "hard_delete":
       await hardDeleteInstallment(supabase, operation.data.id)
       break
-
     case "toggle_payment":
       await togglePayment(supabase, operation.data)
       break
@@ -412,10 +367,10 @@ async function upsertInstallment(supabase: any, data: any): Promise<void> {
     const paymentIds = data.payments.map((p: any) => p.id)
 
     await supabase
-        .from("installment_payments")
-        .delete()
-        .eq("installment_id", data.id)
-        .not("id", "in", `(${paymentIds.join(",")})`)
+      .from("installment_payments")
+      .delete()
+      .eq("installment_id", data.id)
+      .not("id", "in", `(${paymentIds.join(",")})`)
 
     const paymentsToUpsert = data.payments.map((p: any) => ({
       id: p.id,
@@ -430,8 +385,8 @@ async function upsertInstallment(supabase: any, data: any): Promise<void> {
     }))
 
     const { error: payError } = await supabase
-        .from("installment_payments")
-        .upsert(paymentsToUpsert, { onConflict: "id" })
+      .from("installment_payments")
+      .upsert(paymentsToUpsert, { onConflict: "id" })
 
     if (payError) throw payError
   }
@@ -439,28 +394,28 @@ async function upsertInstallment(supabase: any, data: any): Promise<void> {
 
 async function softDeleteInstallment(supabase: any, id: string, deletedAt: string): Promise<void> {
   await supabase
-      .from("installment_payments")
-      .update({ deleted_at: deletedAt, updated_at: new Date().toISOString() })
-      .eq("installment_id", id)
+    .from("installment_payments")
+    .update({ deleted_at: deletedAt, updated_at: new Date().toISOString() })
+    .eq("installment_id", id)
 
   const { error } = await supabase
-      .from("installments")
-      .update({ deleted_at: deletedAt, updated_at: new Date().toISOString() })
-      .eq("id", id)
+    .from("installments")
+    .update({ deleted_at: deletedAt, updated_at: new Date().toISOString() })
+    .eq("id", id)
 
   if (error) throw error
 }
 
 async function restoreInstallment(supabase: any, id: string): Promise<void> {
   await supabase
-      .from("installment_payments")
-      .update({ deleted_at: null, updated_at: new Date().toISOString() })
-      .eq("installment_id", id)
+    .from("installment_payments")
+    .update({ deleted_at: null, updated_at: new Date().toISOString() })
+    .eq("installment_id", id)
 
   const { error } = await supabase
-      .from("installments")
-      .update({ deleted_at: null, updated_at: new Date().toISOString() })
-      .eq("id", id)
+    .from("installments")
+    .update({ deleted_at: null, updated_at: new Date().toISOString() })
+    .eq("id", id)
 
   if (error) throw error
 }
@@ -475,20 +430,20 @@ async function hardDeleteInstallment(supabase: any, id: string): Promise<void> {
 
 async function togglePayment(supabase: any, data: any): Promise<void> {
   const { error } = await supabase
-      .from("installment_payments")
-      .update({
-        is_paid: data.isPaid,
-        paid_date: data.paidDate || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", data.paymentId)
+    .from("installment_payments")
+    .update({
+      is_paid: data.isPaid,
+      paid_date: data.paidDate || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.paymentId)
 
   if (error) throw error
 
   await supabase
-      .from("installments")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", data.installmentId)
+    .from("installments")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", data.installmentId)
 }
 
 // ========================================
@@ -514,13 +469,14 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
 
   console.log(`[Queue] ➕ Added ${newOp.type} (Queue: ${queue.length})`)
 
-  // فوری sync اگه آنلاین است
- if (!isSyncing) {
-    checkRealConnectivity().then(isOnline => {
+  // ← از checkRealConnectivity استفاده میکنه
+  if (!isSyncing) {
+    checkRealConnectivity().then((isOnline) => {
       if (isOnline) syncWithServer().catch(console.error)
     })
   }
 }
+
 export function getQueue(): SyncOperation[] {
   if (typeof window === "undefined") return []
   const stored = localStorage.getItem(SYNC_QUEUE_KEY)
@@ -577,13 +533,6 @@ function isInQueue(itemId: string, queue: SyncOperation[]): boolean {
   return queue.some((op) => op.data?.id === itemId || op.data?.installmentId === itemId)
 }
 
-function isRecentItem(item: Installment): boolean {
-  const itemTime = new Date(item.created_at).getTime()
-  const now = Date.now()
-  const fiveMinutes = 5 * 60 * 1000
-  return now - itemTime < fiveMinutes
-}
-
 function getOperationLabel(type: string): string {
   const labels: Record<string, string> = {
     create: "ایجاد",
@@ -599,11 +548,7 @@ function getOperationLabel(type: string): string {
 
 function notifyError(message: string): void {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(
-        new CustomEvent("sync-error", {
-          detail: { message },
-        })
-    )
+    window.dispatchEvent(new CustomEvent("sync-error", { detail: { message } }))
   }
 }
 
@@ -611,20 +556,22 @@ function notifyError(message: string): void {
 // 🌐 Event Handlers
 // ========================================
 function handleOnline(): void {
-  console.log("[Sync] 🌐 مرورگر آنلاین شد - چک واقعی...")
+  // ← مرورگر میگه آنلاینه، ولی واقعاً چک میکنیم
+  console.log("[Sync] 🌐 Browser online event - checking real connectivity...")
   resetConnectivityCache()
-  checkRealConnectivity().then(isOnline => {  // ← اینجا تغییر کرد
+  checkRealConnectivity().then((isOnline) => {
     if (isOnline) {
-      console.log("[Sync] ✅ اینترنت واقعی تأیید شد")
+      console.log("[Sync] ✅ Real connectivity confirmed")
       syncWithServer().catch(console.error)
     } else {
-      console.log("[Sync] ⚠️ مرورگر آنلاین ولی Supabase در دسترس نیست")
+      console.log("[Sync] ⚠️ Browser online but Supabase unreachable")
     }
   })
 }
 
 function handleOffline(): void {
   console.log("[Sync] 📴 Network offline")
+  resetConnectivityCache()
 }
 
 // ========================================
