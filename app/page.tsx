@@ -25,17 +25,35 @@ export default function Home() {
 
   useEffect(() => {
     async function loadUser() {
-      const online = await checkRealConnectivity()
+      // ← اول فوری از cache بخون - بدون هیچ منتظر موندنی
+      try {
+        const stored = localStorage.getItem("auth_user")
+        if (stored) {
+          const cachedUser = JSON.parse(stored)
+          setUser(cachedUser)
+          setLoading(false)
+          updatePendingOps()
+          startBackgroundSync()
+        }
+      } catch {
+        // cache خراب بود
+      }
+
+      // در پس‌زمینه: چک اتصال + رفرش user از سرور
+      const [online, currentUser] = await Promise.all([
+        checkRealConnectivity(),
+        getCurrentUser(),
+      ])
+
       setIsOnline(online)
       prevOnlineRef.current = online
-
-      // getCurrentUser از localStorage میخونه اگه آفلاین بود - سریعه
-      const currentUser = await getCurrentUser()
 
       console.log("[v0] Current user:", currentUser ? currentUser.email : "None")
       console.log("[v0] Real connectivity:", online)
 
       if (!currentUser) {
+        // اگه cache هم نداشت، برو auth
+        setLoading(false)
         router.replace("/auth")
         return
       }
@@ -46,31 +64,8 @@ export default function Home() {
       startBackgroundSync()
     }
 
-    // timeout اگه loadUser بیشتر از 8 ثانیه طول کشید
-    const loadingTimeout = setTimeout(() => {
-      setLoading((prev) => {
-        if (prev) {
-          console.log("[v0] Loading timeout - using local cache")
-          try {
-            const stored = localStorage.getItem("auth_user")
-            if (stored) {
-              setUser(JSON.parse(stored))
-              startBackgroundSync()
-            } else {
-              router.replace("/auth")
-            }
-          } catch {
-            router.replace("/auth")
-          }
-          return false
-        }
-        return prev
-      })
-    }, 8000)
+    loadUser()
 
-    loadUser().finally(() => clearTimeout(loadingTimeout))
-
-    // setupOnlineListener از checkRealConnectivity استفاده میکنه (در simple-auth.ts)
     const cleanup = setupOnlineListener((online) => {
       const prev = prevOnlineRef.current
       setIsOnline(online)
@@ -126,7 +121,6 @@ export default function Home() {
     window.addEventListener("sync-error", handleSyncError as EventListener)
 
     return () => {
-      clearTimeout(loadingTimeout)
       clearInterval(connectivityInterval)
       cleanup()
       stopBackgroundSync()
