@@ -520,7 +520,7 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
       if (isOnline) syncWithServer().catch(console.error)
     })
   }
-
+}
 export function getQueue(): SyncOperation[] {
   if (typeof window === "undefined") return []
   const stored = localStorage.getItem(SYNC_QUEUE_KEY)
