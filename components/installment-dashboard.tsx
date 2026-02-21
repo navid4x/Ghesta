@@ -54,7 +54,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   }, [])
 
   useEffect(() => {
-    setLoading(false)
+    setLoading(true)
     loadData().finally(() => setLoading(false))
 
     startBackgroundSync()
