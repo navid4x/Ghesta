@@ -4,7 +4,7 @@
 
 let _isOnline: boolean | null = null
 let _lastCheck = 0
-const CHECK_INTERVAL = 5000 // هر 10 ثانیه یه‌بار چک میکنه
+const CHECK_INTERVAL = 10000 // هر 10 ثانیه یه‌بار چک میکنه
 
 /**
  * چک کردن واقعی اینترنت از طریق ping به Supabase
@@ -35,7 +35,7 @@ export async function checkRealConnectivity(): Promise<boolean> {
     }
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000) // 5 ثانیه timeout
+    const timeout = setTimeout(() => controller.abort(), 3000) // 3 ثانیه timeout
 
     const response = await fetch(`${supabaseUrl}/rest/v1/`, {
       method: "HEAD",
