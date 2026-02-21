@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client"
 import type { Installment } from "@/lib/types"
 import { gregorianStringToJalaliString } from "@/lib/persian-calendar"
+import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 
 // ========================================
 // 🔧 تنظیمات
@@ -139,7 +140,8 @@ export function stopBackgroundSync(): void {
 // 🔄 Main Sync Logic
 // ========================================
 async function syncWithServer(): Promise<void> {
-  if (!navigator.onLine || isSyncing) {
+    const isOnline = await checkRealConnectivity()  // ← اینجا تغییر کرد
+  if (!isOnline || isSyncing) {
     return
   }
 
@@ -513,10 +515,11 @@ export function addToQueue(operation: Omit<SyncOperation, "id" | "timestamp" | "
   console.log(`[Queue] ➕ Added ${newOp.type} (Queue: ${queue.length})`)
 
   // فوری sync اگه آنلاین است
-  if (navigator.onLine && !isSyncing) {
-    syncWithServer().catch(console.error)
+ if (!isSyncing) {
+    checkRealConnectivity().then(isOnline => {
+      if (isOnline) syncWithServer().catch(console.error)
+    })
   }
-}
 
 export function getQueue(): SyncOperation[] {
   if (typeof window === "undefined") return []
@@ -608,8 +611,16 @@ function notifyError(message: string): void {
 // 🌐 Event Handlers
 // ========================================
 function handleOnline(): void {
-  console.log("[Sync] 🌐 Network online")
-  syncWithServer().catch(console.error)
+  console.log("[Sync] 🌐 مرورگر آنلاین شد - چک واقعی...")
+  resetConnectivityCache()
+  checkRealConnectivity().then(isOnline => {  // ← اینجا تغییر کرد
+    if (isOnline) {
+      console.log("[Sync] ✅ اینترنت واقعی تأیید شد")
+      syncWithServer().catch(console.error)
+    } else {
+      console.log("[Sync] ⚠️ مرورگر آنلاین ولی Supabase در دسترس نیست")
+    }
+  })
 }
 
 function handleOffline(): void {
