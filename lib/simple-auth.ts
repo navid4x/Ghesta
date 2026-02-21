@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 
 export interface AuthUser {
   id: string
@@ -18,8 +19,10 @@ export async function loginOrSignup(
   isOnline: boolean
   action: "login" | "signup" | "offline"
 }> {
+  const isOnline = await checkRealConnectivity()
+
   // 1️⃣ اگر آنلاین بود → سعی کن Login کنه
-  if (navigator.onLine) {
+  if (isOnline) {
     try {
       const supabase = createClient()
 
@@ -39,7 +42,7 @@ export async function loginOrSignup(
           options: {
             emailRedirectTo: `${window.location.origin}/`,
             data: {
-              email_confirm: false, // بدون تایید ایمیل
+              email_confirm: false,
             },
           },
         })
@@ -55,7 +58,6 @@ export async function loginOrSignup(
             created_at: data.user.created_at,
           }
 
-          // ذخیره Session
           if (data.session) {
             await saveSession(data.session.access_token, data.session.refresh_token)
           }
@@ -76,14 +78,11 @@ export async function loginOrSignup(
           created_at: data.user.created_at,
         }
 
-        // ذخیره Session
         if (data.session) {
           await saveSession(data.session.access_token, data.session.refresh_token)
         }
 
         saveUserToLocal(user)
-
-        // سینک دیتای آفلاین
         await syncOfflineData(user.id)
         clearPendingSync()
 
@@ -91,14 +90,12 @@ export async function loginOrSignup(
         return { user, error: null, isOnline: true, action: "login" }
       }
 
-      // اگه خطای دیگه‌ای بود
       if (error) {
         throw error
       }
     } catch (error: any) {
       console.error("[Auth] خطا در آنلاین:", error.message)
 
-      // اگه خطای اینترنت بود → برو حالت آفلاین
       if (error.message.includes("fetch") || error.message.includes("network")) {
         // ادامه به حالت آفلاین
       } else {
@@ -117,13 +114,11 @@ export async function loginOrSignup(
 
   const storedUser = getStoredUser()
 
-  // اگه قبلاً این یوزر رو داشتیم → Login آفلاین
   if (storedUser && storedUser.email === email && (await verifyOfflinePassword(password))) {
     console.log("[Auth] 📱 ورود آفلاین موفق")
     return { user: storedUser, error: null, isOnline: false, action: "login" }
   }
 
-  // اگه یوزر جدیده → SignUp آفلاین
   const newUser = await createOfflineUser(email, password)
   saveUserToLocal(newUser)
   markForSync({ email, password })
@@ -136,7 +131,9 @@ export async function loginOrSignup(
 // 🚪 LOGOUT
 // ============================================
 export async function logout(): Promise<void> {
-  if (navigator.onLine) {
+  const isOnline = await checkRealConnectivity()
+
+  if (isOnline) {
     try {
       const supabase = createClient()
       await supabase.auth.signOut()
@@ -145,12 +142,8 @@ export async function logout(): Promise<void> {
     }
   }
 
-  // پاک کردن همه چیز
- // localStorage.removeItem("auth_user")
- // localStorage.removeItem("password_hash")
- // localStorage.removeItem("session_token")
- // localStorage.removeItem("refresh_token")
-  localStorage.clear();
+  localStorage.clear()
+  resetConnectivityCache()
   console.log("[Auth] 🚪 خروج موفق")
 }
 
@@ -158,7 +151,9 @@ export async function logout(): Promise<void> {
 // 👤 GET CURRENT USER
 // ============================================
 export async function getCurrentUser(): Promise<AuthUser | null> {
-  if (navigator.onLine) {
+  const isOnline = await checkRealConnectivity()
+
+  if (isOnline) {
     try {
       const supabase = createClient()
       const {
@@ -187,7 +182,9 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 // 🔄 SYNC
 // ============================================
 export async function syncPendingAuth(): Promise<boolean> {
-  if (!navigator.onLine) {
+  const isOnline = await checkRealConnectivity()
+
+  if (!isOnline) {
     console.log("[Sync] ⏸️ آفلاین")
     return false
   }
@@ -242,7 +239,6 @@ async function syncOfflineData(onlineUserId: string): Promise<void> {
     if (offlineData && storedUser.id !== onlineUserId) {
       const installments = JSON.parse(offlineData)
 
-      // آپدیت user_id همه اقساط
       const updatedInstallments = installments.map((inst: any) => ({
         ...inst,
         user_id: onlineUserId,
@@ -298,7 +294,6 @@ async function createOfflineUser(email: string, password: string): Promise<AuthU
     created_at: new Date().toISOString(),
   }
 
-  // ذخیره hash پسورد
   const hash = await hashPassword(password)
   localStorage.setItem("password_hash", hash)
 
@@ -339,14 +334,21 @@ function clearPendingSync(): void {
 // 🌐 ONLINE/OFFLINE LISTENER
 // ============================================
 export function setupOnlineListener(callback: (isOnline: boolean) => void): () => void {
+  // وقتی مرورگر آنلاین شد، واقعاً چک کن
   const onOnline = async () => {
-    console.log("[Network] 🌐 آنلاین شد")
-    callback(true)
-    await syncPendingAuth()
+    console.log("[Network] 🌐 مرورگر آنلاین شد - چک واقعی...")
+    resetConnectivityCache()
+    const realOnline = await checkRealConnectivity()
+    console.log("[Network] نتیجه چک واقعی:", realOnline)
+    callback(realOnline)
+    if (realOnline) {
+      await syncPendingAuth()
+    }
   }
 
   const onOffline = () => {
     console.log("[Network] 📱 آفلاین شد")
+    resetConnectivityCache()
     callback(false)
   }
 
