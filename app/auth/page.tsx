@@ -8,46 +8,73 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { signInOrSignUp, getCurrentUser } from "@/lib/auth-handler"
-import { WifiOff, Wifi, Wallet } from "lucide-react"
-import { subscribeToPushNotifications } from '@/lib/push-notifications'
+import { WifiOff, Wallet } from "lucide-react"
+import { subscribeToPushNotifications } from "@/lib/push-notifications"
+import { checkRealConnectivity, resetConnectivityCache } from "@/lib/network"
 
 export default function AuthPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
+  const [isOnline, setIsOnline] = useState(false) // ← پیش‌فرض false
+  const [checkingConnectivity, setCheckingConnectivity] = useState(true)
   const router = useRouter()
   const { toast } = useToast()
 
   useEffect(() => {
     async function checkUser() {
-      const user = await getCurrentUser()
-      if (user) {
-        router.replace("/")
+      // اول چک واقعی اینترنت
+      setCheckingConnectivity(true)
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+      setCheckingConnectivity(false)
+
+      if (online) {
+        const user = await getCurrentUser()
+        if (user) {
+          router.replace("/")
+        }
       }
     }
     checkUser()
 
-    const updateOnlineStatus = () => setIsOnline(navigator.onLine)
-    updateOnlineStatus()
-    
-    window.addEventListener('online', updateOnlineStatus)
-    window.addEventListener('offline', updateOnlineStatus)
-    
+    // چک دوره‌ای هر 15 ثانیه
+    const interval = setInterval(async () => {
+      resetConnectivityCache()
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+    }, 15000)
+
+    // گوش دادن به تغییرات مرورگر
+    const handleOnline = async () => {
+      resetConnectivityCache()
+      const online = await checkRealConnectivity()
+      setIsOnline(online)
+    }
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
     return () => {
-      window.removeEventListener('online', updateOnlineStatus)
-      window.removeEventListener('offline', updateOnlineStatus)
+      clearInterval(interval)
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
     }
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    // بررسی اتصال اینترنت
-    if (!navigator.onLine) {
+    // چک واقعی اتصال قبل از submit
+    resetConnectivityCache()
+    const online = await checkRealConnectivity()
+    setIsOnline(online)
+
+    if (!online) {
       toast({
-        title: "⚠️ اتصال اینترنت لازم است",
-        description: "برای ورود یا ثبت‌نام باید به اینترنت متصل باشید",
+        title: "⚠️ اتصال به سرور لازم است",
+        description: "برای ورود یا ثبت‌نام باید به سرور دسترسی داشته باشید",
         variant: "destructive",
       })
       return
@@ -77,21 +104,18 @@ export default function AuthPage() {
         return
       }
 
-      // موفق بود
       const user = await getCurrentUser()
-      
+
       if (user) {
         toast({
           title: result.isNewUser ? "✅ حساب شما ایجاد شد!" : "✅ خوش آمدید!",
           description: result.isNewUser ? "خوش آمدید به قسطا" : "با موفقیت وارد شدید",
         })
 
-        // درخواست مجوز نوتیفیکیشن
-        if ('Notification' in window) {
+        if ("Notification" in window) {
           const permission = await Notification.requestPermission()
-          if (permission === 'granted') {
+          if (permission === "granted") {
             await subscribeToPushNotifications(user.id)
-            console.log("[v0] Notification access granted")
           }
         }
 
@@ -110,9 +134,9 @@ export default function AuthPage() {
       setLoading(false)
     }
   }
- 
-  return(
-<div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
+
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
@@ -123,9 +147,14 @@ export default function AuthPage() {
           <CardTitle className="text-3xl font-bold">قسطا</CardTitle>
           <CardDescription className="text-base">
             برای ورود یا ثبت‌نام، ایمیل و رمز عبور خود را وارد کنید
-            {!isOnline && (
+            {checkingConnectivity && (
+              <span className="block mt-2 text-muted-foreground text-sm">
+                در حال بررسی اتصال...
+              </span>
+            )}
+            {!checkingConnectivity && !isOnline && (
               <span className="block mt-2 text-orange-600 dark:text-orange-400 font-medium">
-                ⚠️ برای ورود باید به اینترنت متصل باشید
+                ⚠️ اتصال به سرور برقرار نیست
               </span>
             )}
           </CardDescription>
@@ -143,7 +172,7 @@ export default function AuthPage() {
                 required
                 dir="ltr"
                 className="mt-2"
-                disabled={!isOnline}
+                disabled={!isOnline || checkingConnectivity}
               />
             </div>
 
@@ -159,17 +188,22 @@ export default function AuthPage() {
                 minLength={6}
                 dir="ltr"
                 className="mt-2"
-                disabled={!isOnline}
+                disabled={!isOnline || checkingConnectivity}
               />
               <p className="mt-2 text-xs text-muted-foreground">حداقل ۶ کاراکتر</p>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full h-11 text-base font-semibold" 
-              disabled={loading || !isOnline}
+            <Button
+              type="submit"
+              className="w-full h-11 text-base font-semibold"
+              disabled={loading || !isOnline || checkingConnectivity}
             >
-              {loading ? (
+              {checkingConnectivity ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  بررسی اتصال...
+                </span>
+              ) : loading ? (
                 <span className="flex items-center gap-2">
                   <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                   در حال ورود...
@@ -189,7 +223,8 @@ export default function AuthPage() {
                 </>
               ) : (
                 <>
-                  📱 برای اولین بار استفاده، باید به اینترنت متصل باشید. سپس می‌توانید آفلاین کار کنید.
+                  <WifiOff className="h-4 w-4 inline ml-1" />
+                  دسترسی به سرور امکان‌پذیر نیست. لطفاً اتصال اینترنت خود را بررسی کنید.
                 </>
               )}
             </p>
@@ -198,6 +233,4 @@ export default function AuthPage() {
       </Card>
     </div>
   )
-
 }
-
