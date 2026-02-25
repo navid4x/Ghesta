@@ -3,7 +3,7 @@ const STATIC_CACHE = `ghesta-static-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `ghesta-dynamic-${CACHE_VERSION}`
 
 // فایل‌های استاتیک
-const STATIC_ASSETS = ["/", "/auth", "/manifest.json", "/icon-192.jpg", "/icon-512.jpg"]
+const STATIC_ASSETS = ["/", "/auth", "/manifest.json", "/icon-192.png", "/icon-512.png"]
 
 // ========================================
 // 📥 نصب Service Worker
