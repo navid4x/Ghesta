@@ -31,3 +31,6 @@ next-env.d.ts
 /pnpm-workspace.yaml
 /.idea/dictionaries/project.xml
 /.idea/vcs.xml
+/.idea/copilot.data.migration.ask2agent.xml
+/.idea/indexLayout.xml
+/.idea/projectSettingsUpdater.xml
