@@ -110,13 +110,10 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   }
 
   function getPersianDate(gregorianDate: string, jalaliDate?: string): string {
-    // اگر jalali_due_date داریم، مستقیم استفاده کن
     if (jalaliDate) {
       const [year, month, day] = jalaliDate.split("/").map(Number)
       return `${toPersianDigits(day)} ${persianMonths[month - 1]} ${toPersianDigits(year)}`
     }
-    
-    // fallback: تبدیل از gregorian
     const [year, month, day] = gregorianDate.split("-").map(Number)
     const [jy, jm, jd] = gregorianToJalali(year, month, day)
     return `${toPersianDigits(jd)} ${persianMonths[jm - 1]} ${toPersianDigits(jy)}`
@@ -142,112 +139,72 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return labels[recurrence as keyof typeof labels] || recurrence
   }
 
-  // ============================================
-  // 💰 کل بدهی (از امروز به بعد)
-  // ============================================
   const totalDebt = installments.reduce((sum, inst) => {
-    if (!inst.payments || !Array.isArray(inst.payments)) {
-      return sum
-    }
-
+    if (!inst.payments || !Array.isArray(inst.payments)) return sum
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-
-        // فقط اقساطی که از امروز به بعد هستن
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
-
         return dueDate >= todayGregorian
       })
       .reduce((s, p) => s + (p.amount || 0), 0)
-
     return sum + unpaidAmount
   }, 0)
 
-  // ============================================
-  // 📅 بدهی ماه جاری (از امروز تا آخر ماه جاری)
-  // ============================================
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
-
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
-
-        // باید از امروز به بعد باشه
         if (dueDate < todayGregorian) return false
-
-        // تبدیل به شمسی
         const [dueJY, dueJM] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
           dueDate.getDate(),
         )
-
-        // چک کردن: آیا در ماه جاری هست؟
         return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
       })
       .reduce((s, p) => s + (p.amount || 0), 0)
-
     return sum + unpaidAmount
   }, 0)
 
-  // ============================================
-  // 📆 اقساط این هفته (7 روز آینده)
-  // ============================================
   const upcomingThisWeek = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
       .filter((p) => {
         if (p.is_paid) return false
         const daysUntil = getDaysUntilDue(p.due_date)
-        // از امروز تا 7 روز آینده
         return daysUntil >= 0 && daysUntil <= 7
       })
       .map((p) => ({ ...inst, payment: p }))
   })
 
-  // ============================================
-  // 📅 اقساط ماه جاری (از امروز تا آخر ماه)
-  // ============================================
   const currentMonthInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
-
-        // باید از امروز به بعد باشه
         if (dueDate < todayGregorian) return false
-
         const [dueJY, dueJM] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
           dueDate.getDate(),
         )
-
-        // ماه و سال جاری
         return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
       })
       .map((p) => ({ ...inst, payment: p }))
   })
 
-  // ============================================
-  // ⚠️ اقساط معوقه (گذشته و پرداخت نشده)
-  // ============================================
   const overdueInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
       .filter((p) => {
         if (p.is_paid) return false
-        
-        // فقط اقساطی که تاریخشون گذشته
         const daysUntil = getDaysUntilDue(p.due_date)
         return daysUntil < 0
       })
@@ -282,7 +239,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
 
   async function handleConfirmUndo() {
     if (!undoInstallment) return
-
     await undoLastPayment(undoInstallment.id)
     await loadData()
     setUndoDialogOpen(false)
@@ -292,7 +248,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   function getUndoPaymentInfo(installment: Installment) {
     const lastPaid = getLastPaidPayment(installment)
     if (!lastPaid) return null
-
     return {
       date: getPersianDate(lastPaid.due_date, lastPaid.jalali_due_date),
       amount: formatCurrency(lastPaid.amount),
@@ -311,7 +266,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     <div className="space-y-6">
       {/* دکمه‌های شناور */}
       <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2 mb-0">
-        {/* دکمه افزودن */}
         <Button
           onClick={() => handleAddInstallment()}
           size="icon"
@@ -319,8 +273,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         >
           <Plus className="h-6 w-6" />
         </Button>
-
-        {/* دکمه سطل زباله */}
         <Button
           onClick={() => setTrashDialogOpen(true)}
           size="icon"
@@ -421,6 +373,22 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
               </div>
             ))}
           </div>
+
+          {/* ردیف جمع کل */}
+          <div className="mt-3 pt-3 border-t-2 border-dashed flex items-center justify-between px-1">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>جمع کل</span>
+              <Badge variant="secondary" className="text-xs">
+                {toPersianDigits(selectedCardData.length)} قسط
+              </Badge>
+            </div>
+            <p className="font-bold text-base text-primary">
+              {formatCurrency(
+                selectedCardData.reduce((sum, item) => sum + (item.payment.amount || 0), 0)
+              )}{" "}
+              تومان
+            </p>
+          </div>
         </Card>
       )}
 
@@ -442,8 +410,8 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         </TabsList>
 
         <TabsContent value="calendar" className="mt-4">
-          <CalendarGrid 
-            onDateSelect={(date) => handleAddInstallment(date)} 
+          <CalendarGrid
+            onDateSelect={(date) => handleAddInstallment(date)}
             installmentDates={installmentDates}
             allInstallments={installments}
           />
@@ -457,9 +425,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           <div className="grid gap-4 text-right">
             {installments.length > 0 ? (
               installments.map((installment) => {
-                if (!installment.payments || !Array.isArray(installment.payments)) {
-                  return null
-                }
+                if (!installment.payments || !Array.isArray(installment.payments)) return null
 
                 const paidCount = installment.payments.filter((p) => p.is_paid).length
                 const progress = (paidCount / installment.installment_count) * 100
@@ -510,7 +476,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
                             {toPersianDigits(Math.round(progress))}%)
                           </span>
                         </div>
-
                         <Progress value={progress} className="h-2 md:h-3" />
                       </div>
 
@@ -592,8 +557,8 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         amount={undoInstallment ? getUndoPaymentInfo(undoInstallment)?.amount : undefined}
       />
 
-      <TrashDialog 
-        open={trashDialogOpen} 
+      <TrashDialog
+        open={trashDialogOpen}
         onOpenChange={setTrashDialogOpen}
         onRestore={loadData}
       />
