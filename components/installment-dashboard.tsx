@@ -386,6 +386,21 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           </div>
         </Card>
 
+          {/* ۶ — مانده بدهی ۳ ماه آینده */}
+        <Card className="p-4 bg-gradient-to-br from-violet-500/10 to-purple-500/5 border-violet-500/20">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-muted-foreground">مانده ۳ ماه آینده</p>
+              <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
+                {formatCurrency(nextThreeMonthsDebt)} تومان
+              </p>
+            </div>
+            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-violet-500/10 shrink-0">
+              <Clock className="h-4 w-4 md:h-5 md:w-5 text-violet-500" />
+            </div>
+          </div>
+        </Card>
+        
         {/* ۴ — سررسید این هفته */}
         <Card
           className="p-4 bg-gradient-to-br from-amber-500/10 to-yellow-500/5 border-amber-500/20 cursor-pointer hover:shadow-lg transition-shadow"
@@ -418,20 +433,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           </div>
         </Card>
 
-        {/* ۶ — مانده بدهی ۳ ماه آینده */}
-        <Card className="p-4 bg-gradient-to-br from-violet-500/10 to-purple-500/5 border-violet-500/20">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted-foreground">مانده ۳ ماه آینده</p>
-              <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
-                {formatCurrency(nextThreeMonthsDebt)} تومان
-              </p>
-            </div>
-            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-violet-500/10 shrink-0">
-              <Clock className="h-4 w-4 md:h-5 md:w-5 text-violet-500" />
-            </div>
-          </div>
-        </Card>
+      
 
       </div>
 
