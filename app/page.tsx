@@ -130,13 +130,6 @@ export default function Home() {
       }
     }, 30000)
 
-    const showReminderSection =
-  !notificationEnabled || walletIconClicks >= 5;
-
-const handleWalletIconClick = () => {
-  setWalletIconClicks(prev => prev + 1);
-};
-
     const handleSyncComplete = () => updatePendingOps()
     const handleQueueUpdated = () => updatePendingOps()
     const handleSyncError = (event: CustomEvent) => {
@@ -185,7 +178,13 @@ const handleWalletIconClick = () => {
 
   const today = getTodayPersian()
   const todayPersianString = `${today[2].toString().padStart(2, "0")} ${persianMonths[today[1] - 1]} ${today[0]}`
+  
+const showReminderSection =
+  !notificationEnabled || walletIconClicks >= 5;
 
+const handleWalletIconClick = () => {
+  setWalletIconClicks(prev => prev + 1);
+};
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <header className="border-b bg-card/80 backdrop-blur-xl sticky top-0 z-50">
