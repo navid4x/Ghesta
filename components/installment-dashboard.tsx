@@ -156,14 +156,14 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
   }, 0)
 
   // ─── بدهی ماه جاری ─────────────────────────────────────────
-  const currentMonthDebt = installments.reduce((sum, inst) => {
+const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
     const unpaidAmount = inst.payments
       .filter((p) => {
         if (p.is_paid) return false
         const dueDate = new Date(p.due_date)
         dueDate.setHours(0, 0, 0, 0)
-        if (dueDate < todayGregorian) return false
+        // شرط مقایسه با امروز حذف شد
         const [dueJY, dueJM] = gregorianToJalali(
           dueDate.getFullYear(),
           dueDate.getMonth() + 1,
