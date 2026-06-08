@@ -16,7 +16,9 @@ import {
   List,
   Plus,
   Trash2,
-  Undo2
+  Undo2,
+  TrendingDown,
+  Clock,
 } from "lucide-react"
 import type {Installment} from "@/lib/types"
 import {InstallmentDialog} from "./installment-dialog"
@@ -139,6 +141,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return labels[recurrence as keyof typeof labels] || recurrence
   }
 
+  // ─── کل بدهی ───────────────────────────────────────────────
   const totalDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
     const unpaidAmount = inst.payments
@@ -152,6 +155,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return sum + unpaidAmount
   }, 0)
 
+  // ─── بدهی ماه جاری ─────────────────────────────────────────
   const currentMonthDebt = installments.reduce((sum, inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return sum
     const unpaidAmount = inst.payments
@@ -171,6 +175,56 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
     return sum + unpaidAmount
   }, 0)
 
+  // ─── مانده بدهی ماه جاری (از امروز تا آخر ماه) ────────────
+  const currentMonthRemaining = installments.reduce((sum, inst) => {
+    if (!inst.payments || !Array.isArray(inst.payments)) return sum
+    const unpaidAmount = inst.payments
+      .filter((p) => {
+        if (p.is_paid) return false
+        const dueDate = new Date(p.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+        if (dueDate < todayGregorian) return false
+        const [dueJY, dueJM] = gregorianToJalali(
+          dueDate.getFullYear(),
+          dueDate.getMonth() + 1,
+          dueDate.getDate(),
+        )
+        return dueJY === todayJalaliYear && dueJM === todayJalaliMonth
+      })
+      .reduce((s, p) => s + (p.amount || 0), 0)
+    return sum + unpaidAmount
+  }, 0)
+
+  // ─── مانده بدهی ۳ ماه آینده ────────────────────────────────
+  const nextThreeMonthsDebt = installments.reduce((sum, inst) => {
+    if (!inst.payments || !Array.isArray(inst.payments)) return sum
+    const unpaidAmount = inst.payments
+      .filter((p) => {
+        if (p.is_paid) return false
+        const dueDate = new Date(p.due_date)
+        dueDate.setHours(0, 0, 0, 0)
+        if (dueDate < todayGregorian) return false
+        const [dueJY, dueJM] = gregorianToJalali(
+          dueDate.getFullYear(),
+          dueDate.getMonth() + 1,
+          dueDate.getDate(),
+        )
+        for (let i = 1; i <= 3; i++) {
+          let targetMonth = todayJalaliMonth + i
+          let targetYear = todayJalaliYear
+          if (targetMonth > 12) {
+            targetMonth -= 12
+            targetYear += 1
+          }
+          if (dueJY === targetYear && dueJM === targetMonth) return true
+        }
+        return false
+      })
+      .reduce((s, p) => s + (p.amount || 0), 0)
+    return sum + unpaidAmount
+  }, 0)
+
+  // ─── سررسید این هفته ───────────────────────────────────────
   const upcomingThisWeek = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -200,6 +254,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
       .map((p) => ({ ...inst, payment: p }))
   })
 
+  // ─── اقساط معوقه ───────────────────────────────────────────
   const overdueInstallments = installments.flatMap((inst) => {
     if (!inst.payments || !Array.isArray(inst.payments)) return []
     return inst.payments
@@ -283,8 +338,10 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         </Button>
       </div>
 
-      {/* کارت‌های آمار */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+      {/* کارت‌های آمار — ۲ ستون موبایل، ۳ ستون دسکتاپ */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+
+        {/* ۱ — کل بدهی */}
         <Card className="p-4 bg-gradient-to-br from-rose-500/10 to-orange-500/5 border-rose-500/20">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -299,6 +356,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           </div>
         </Card>
 
+        {/* ۲ — بدهی ماه جاری */}
         <Card className="p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/20">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -313,6 +371,22 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           </div>
         </Card>
 
+        {/* ۳ — مانده بدهی ماه جاری */}
+        <Card className="p-4 bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-muted-foreground">مانده ماه جاری</p>
+              <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
+                {formatCurrency(currentMonthRemaining)} تومان
+              </p>
+            </div>
+            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-blue-500/10 shrink-0">
+              <TrendingDown className="h-4 w-4 md:h-5 md:w-5 text-blue-500" />
+            </div>
+          </div>
+        </Card>
+
+        {/* ۴ — سررسید این هفته */}
         <Card
           className="p-4 bg-gradient-to-br from-amber-500/10 to-yellow-500/5 border-amber-500/20 cursor-pointer hover:shadow-lg transition-shadow"
           onClick={() => setSelectedCard(selectedCard === "thisWeek" ? null : "thisWeek")}
@@ -328,6 +402,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           </div>
         </Card>
 
+        {/* ۵ — اقساط معوقه */}
         <Card
           className="p-4 bg-gradient-to-br from-red-500/10 to-pink-500/5 border-red-500/20 cursor-pointer hover:shadow-lg transition-shadow"
           onClick={() => setSelectedCard(selectedCard === "overdue" ? null : "overdue")}
@@ -342,6 +417,22 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
             </div>
           </div>
         </Card>
+
+        {/* ۶ — مانده بدهی ۳ ماه آینده */}
+        <Card className="p-4 bg-gradient-to-br from-violet-500/10 to-purple-500/5 border-violet-500/20">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-muted-foreground">مانده ۳ ماه آینده</p>
+              <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
+                {formatCurrency(nextThreeMonthsDebt)} تومان
+              </p>
+            </div>
+            <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl bg-violet-500/10 shrink-0">
+              <Clock className="h-4 w-4 md:h-5 md:w-5 text-violet-500" />
+            </div>
+          </div>
+        </Card>
+
       </div>
 
       {/* نمایش اقساط انتخاب شده */}
