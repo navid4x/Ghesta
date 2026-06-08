@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react"
 import { startBackgroundSync, stopBackgroundSync, getQueueSize } from "@/lib/background-sync"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
+import { isPushSubscribed } from "@/lib/push-notifications"
 
 
 export default function Home() {
@@ -20,10 +21,22 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [isOnline, setIsOnline] = useState(false)
   const [pendingOps, setPendingOps] = useState(0)
+  const [walletIconClicks, setWalletIconClicks] = useState(0);
+  const [notificationEnabled, setNotificationEnabled] = useState(false)
+
+
   const { toast } = useToast()
   const prevOnlineRef = useRef<boolean | null>(null)
 
   useEffect(() => {
+    
+      const checkNotificationStatus = async () => {
+    const subscribed = await isPushSubscribed()
+    setNotificationEnabled(subscribed)
+  }
+
+  checkNotificationStatus()
+    
     async function loadUser() {
       // ← اول فوری از cache بخون
       let hasCachedUser = false
@@ -117,6 +130,13 @@ export default function Home() {
       }
     }, 30000)
 
+    const showReminderSection =
+  !notificationEnabled || walletIconClicks >= 5;
+
+const handleWalletIconClick = () => {
+  setWalletIconClicks(prev => prev + 1);
+};
+
     const handleSyncComplete = () => updatePendingOps()
     const handleQueueUpdated = () => updatePendingOps()
     const handleSyncError = (event: CustomEvent) => {
@@ -171,7 +191,7 @@ export default function Home() {
       <header className="border-b bg-card/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto flex h-20 items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-md shadow-primary/30">
+            <div onClick={handleWalletIconClick} className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-md shadow-primary/30">
               <Wallet className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
@@ -210,7 +230,7 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <NotificationSettings userId={user.id} />
+        {showReminderSection && (<NotificationSettings userId={user.id} />)}
         <InstallmentDashboard userId={user.id} />
       </main>
     </div>
