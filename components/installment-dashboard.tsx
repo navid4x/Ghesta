@@ -378,9 +378,6 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
           <div className="mt-3 pt-3 border-t-2 border-dashed flex items-center justify-between px-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>جمع کل</span>
-              <Badge variant="secondary" className="text-xs">
-                {toPersianDigits(selectedCardData.length)} قسط
-              </Badge>
             </div>
             <p className="font-bold text-base text-primary">
               {formatCurrency(
