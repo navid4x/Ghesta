@@ -375,7 +375,7 @@ export function InstallmentDashboard({ userId }: InstallmentDashboardProps) {
         <Card className="p-4 bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border-blue-500/20">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted-foreground">مانده ماه جاری</p>
+              <p className="text-xs font-medium text-muted-foreground">مانده بدهی ماه جاری</p>
               <p className="mt-1 text-sm md:text-lg font-bold text-balance break-words">
                 {formatCurrency(currentMonthRemaining)} تومان
               </p>
