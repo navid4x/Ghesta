@@ -89,14 +89,8 @@ export async function GET(request: NextRequest) {
   
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({
-      header: authHeader,
-      secret: process.env.CRON_SECRET,
-      expected: `Bearer ${process.env.CRON_SECRET}`,
-    })
-  }
-     // return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    //}
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
   }
 
   try {
