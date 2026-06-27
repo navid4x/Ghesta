@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   // چک کردن auth header برای امنیت cron
   const authHeader = request.headers.get("authorization")
+  console.log("header:", authHeader)
+  console.log("secret:", process.env.CRON_SECRET)
+  
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     if (process.env.NODE_ENV === "production") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
